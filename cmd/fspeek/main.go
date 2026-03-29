@@ -94,6 +94,7 @@ func main() {
 	// --- Wire lister cascade and fetchers ---
 	lister := parser.NewCascade(
 		parser.NginxJSONLister{},
+		parser.NginxHTMLLister{},
 		parser.GenericHrefLister{},
 	)
 
