@@ -198,12 +198,18 @@ func (c *SQLiteCache) SetMetadata(rawURL string, m *fetcher.Metadata, etag strin
 
 func (c *SQLiteCache) Invalidate(rawURL string) error {
 	key := Canonicalize(rawURL)
-	_, err := c.db.Exec(`DELETE FROM listings WHERE url = ?`, key)
+	tx, err := c.db.Begin()
 	if err != nil {
 		return err
 	}
-	_, err = c.db.Exec(`DELETE FROM metadata WHERE url = ?`, key)
-	return err
+	defer tx.Rollback() //nolint:errcheck
+	if _, err := tx.Exec(`DELETE FROM listings WHERE url = ?`, key); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM metadata WHERE url = ?`, key); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ComputeDirSize recursively computes directory size from cached listings.
