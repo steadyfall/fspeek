@@ -60,11 +60,11 @@ type mkvHandler struct {
 	audioInfo  string
 
 	// per-track state
-	inTrack     bool
-	trackType   int64 // 1=video, 2=audio
+	inTrack      bool
+	trackType    int64 // 1=video, 2=audio
 	currentCodec string
 	samplingFreq float64
-	channels    int64
+	channels     int64
 }
 
 func (h *mkvHandler) HandleMasterBegin(id mkvparse.ElementID, info mkvparse.ElementInfo) (bool, error) {

@@ -14,10 +14,10 @@ import (
 
 // nginxEntry matches the JSON schema emitted by nginx autoindex_format json.
 type nginxEntry struct {
-	Name   string  `json:"name"`
-	Type   string  `json:"type"` // "file" or "directory"
-	Mtime  string  `json:"mtime"`
-	Size   *int64  `json:"size"` // null for directories
+	Name  string `json:"name"`
+	Type  string `json:"type"` // "file" or "directory"
+	Mtime string `json:"mtime"`
+	Size  *int64 `json:"size"` // null for directories
 }
 
 // NginxJSONLister parses nginx autoindex JSON output.

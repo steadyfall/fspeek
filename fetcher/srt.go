@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	srtHeadSize = 4 * 1024  // 4KB for format detection
-	srtTailSize = 4 * 1024  // 4KB to find last timestamp
+	srtHeadSize = 4 * 1024 // 4KB for format detection
+	srtTailSize = 4 * 1024 // 4KB to find last timestamp
 )
 
 var (

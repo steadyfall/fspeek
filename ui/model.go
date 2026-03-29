@@ -48,10 +48,10 @@ type spinnerTickMsg struct{}
 // Model is the bubbletea model for fspeek.
 type Model struct {
 	// Directory state.
-	baseURL  string
-	entries  []cache.Entry
-	cursor   int
-	history  []string // stack of parent URLs for navigation back
+	baseURL string
+	entries []cache.Entry
+	cursor  int
+	history []string // stack of parent URLs for navigation back
 
 	// Listing fetch state.
 	loadingListing bool
@@ -68,10 +68,10 @@ type Model struct {
 	prefetched map[string]bool
 
 	// UI settings.
-	showBytes  bool
-	width      int
-	height     int
-	spinFrame  int
+	showBytes bool
+	width     int
+	height    int
+	spinFrame int
 
 	// Dependencies (injected).
 	cache    cache.Cache
@@ -83,10 +83,10 @@ type Model struct {
 
 // Options configures the Model.
 type Options struct {
-	Cache    cache.Cache
-	Client   *http.Client
-	Lister   parser.DirectoryLister
-	Fetchers []fetcher.MetadataFetcher
+	Cache      cache.Cache
+	Client     *http.Client
+	Lister     parser.DirectoryLister
+	Fetchers   []fetcher.MetadataFetcher
 	MaxFetches int
 	ShowBytes  bool
 }
