@@ -29,5 +29,5 @@ func FetchRange(ctx context.Context, client *http.Client, url string, start, end
 		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
 
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(io.LimitReader(resp.Body, end-start+1))
 }
