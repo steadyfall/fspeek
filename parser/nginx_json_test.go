@@ -90,3 +90,27 @@ func TestNginxJSONLister_EmptyArray(t *testing.T) {
 		t.Errorf("expected empty entries, got %d", len(entries))
 	}
 }
+
+// Regression: joinURL must percent-encode path-unsafe characters in filenames.
+// Filenames containing '#', '?', space, or a literal '%' must produce valid URLs
+// that round-trip correctly. Without PathEscape, '#' and '?' truncate the URL at
+// the fragment/query boundary; space produces an invalid URL; '%' double-encodes.
+func TestJoinURL_SpecialChars(t *testing.T) {
+	cases := []struct {
+		name  string
+		isDir bool
+		want  string
+	}{
+		{"file #1.mp4", false, "http://x/file%20%231.mp4"},
+		{"report?q=1.txt", false, "http://x/report%3Fq=1.txt"},
+		{"my file.mkv", false, "http://x/my%20file.mkv"},
+		{"50% done.srt", false, "http://x/50%25%20done.srt"},
+		{"dir #1", true, "http://x/dir%20%231/"},
+	}
+	for _, c := range cases {
+		got := joinURL("http://x", c.name, c.isDir)
+		if got != c.want {
+			t.Errorf("joinURL(%q, isDir=%v) = %q, want %q", c.name, c.isDir, got, c.want)
+		}
+	}
+}
