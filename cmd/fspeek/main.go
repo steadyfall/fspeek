@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -94,7 +95,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "fspeek: cache dir: %v\n", err)
 			os.Exit(1)
 		}
-		sc, err := cache.Open(dbPath)
+		sc, err := cache.Open(dbPath, time.Duration(cfg.Settings.CacheTTLHours)*time.Hour)
 		if err != nil {
 			// Non-fatal: run without cache.
 			fmt.Fprintf(os.Stderr, "fspeek: cache unavailable (%v) — running without cache\n", err)
