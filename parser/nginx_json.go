@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -96,11 +97,12 @@ func parseNginxTime(s string) (time.Time, error) {
 	return time.Parse("Mon, 02 Jan 2006 15:04:05 MST", s)
 }
 
-// joinURL appends name to the base directory URL.
+// joinURL appends name to the base directory URL, percent-encoding path-unsafe chars.
 func joinURL(base, name string, isDir bool) string {
 	base = strings.TrimRight(base, "/")
+	escaped := url.PathEscape(name)
 	if isDir {
-		return base + "/" + name + "/"
+		return base + "/" + escaped + "/"
 	}
-	return base + "/" + name
+	return base + "/" + escaped
 }
