@@ -83,3 +83,34 @@ func TestCascade_EmptyResultIsSuccess(t *testing.T) {
 		t.Errorf("expected empty, got %d", len(got))
 	}
 }
+
+// Regression: ISSUE-002 — NewCascade returns a DirectoryLister that delegates to Cascade
+// Found by /qa on 2026-03-29
+// Report: .gstack/qa-reports/qa-report-fspeek-2026-03-29.md
+func TestNewCascade_Delegates(t *testing.T) {
+	lister := NewCascade(
+		stubLister{err: ErrNoMatch},
+		stubLister{entries: someEntries, err: nil},
+	)
+	got, err := lister.List(context.Background(), "http://x/", http.DefaultClient)
+	if err != nil {
+		t.Fatalf("NewCascade List: %v", err)
+	}
+	if len(got) != 1 {
+		t.Errorf("len = %d, want 1", len(got))
+	}
+}
+
+// Regression: ISSUE-002 — NewCascade List propagates ErrNoMatch when all listers fail
+// Found by /qa on 2026-03-29
+// Report: .gstack/qa-reports/qa-report-fspeek-2026-03-29.md
+func TestNewCascade_AllNoMatch(t *testing.T) {
+	lister := NewCascade(
+		stubLister{err: ErrNoMatch},
+		stubLister{err: ErrNoMatch},
+	)
+	_, err := lister.List(context.Background(), "http://x/", http.DefaultClient)
+	if !errors.Is(err, ErrNoMatch) {
+		t.Errorf("want ErrNoMatch, got %v", err)
+	}
+}
