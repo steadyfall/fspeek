@@ -46,6 +46,13 @@ Examples:
 - `feat(fetcher): add MP3 metadata extractor`
 - `fix(cache): handle nil entry on miss`
 
+Before every commit, run:
+
+```bash
+go fmt ./...
+go vet ./...
+```
+
 ## Do not
 
 - Add CGO dependencies — SQLite uses `modernc.org/sqlite` (pure Go)
