@@ -380,6 +380,39 @@ func TestUpdate_BackNav_DeepHistory(t *testing.T) {
 	}
 }
 
+// Regression: navigateTo must clear loadingListing and listingErr on a cache hit.
+// Before the fix, navigating to a cached URL after an error left the error state
+// visible in the UI even though fresh entries were already populated from cache.
+func TestNavigateTo_CachedHit_ClearsLoadingState(t *testing.T) {
+	sc := newStubCache()
+	sc.listings["http://x/sub/"] = []cache.Entry{
+		{Name: "file.mkv", URL: "http://x/sub/file.mkv"},
+	}
+
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+
+	// Simulate a prior listing error and loading state being active.
+	m.loadingListing = true
+	m.listingErr = errors.New("previous error")
+
+	// Navigate to a URL that is in the cache.
+	newM, _ := m.navigateTo("http://x/sub/", true)
+	m2 := newM.(Model)
+
+	if m2.loadingListing {
+		t.Error("loadingListing should be false after cache hit")
+	}
+	if m2.listingErr != nil {
+		t.Errorf("listingErr should be nil after cache hit, got %v", m2.listingErr)
+	}
+	if len(m2.entries) != 1 {
+		t.Errorf("entries len = %d, want 1", len(m2.entries))
+	}
+	if m2.baseURL != "http://x/sub/" {
+		t.Errorf("baseURL = %q, want %q", m2.baseURL, "http://x/sub/")
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) > 0 && len(sub) > 0 && (s == sub || len(s) >= len(sub) &&
 		func() bool {

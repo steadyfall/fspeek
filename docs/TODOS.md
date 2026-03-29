@@ -58,6 +58,24 @@ Items explicitly deferred from the eng review. Each has context for whoever pick
 
 ---
 
+## TODO-5: Extract cross-host guard to a testable helper
+
+**What:** Extract the cross-host credential-leak guard in `cmd/fspeek/main.go` (lines 70-80) to a standalone function `checkCrossHostConflict(srvURL, flagURL string) error` in a new `cmd/fspeek/flags.go` (or inline in `main.go`), and add unit tests for it.
+
+**Why:** The guard is a security invariant with zero test coverage. Currently unreachable by any unit test because it lives inside `main()`. Two additional gaps: (1) if either URL fails `url.Parse`, the guard silently bypasses; (2) `host:443` vs `host` (explicit vs implicit port) produces a false-positive rejection.
+
+**Pros:** Security invariant becomes verifiable. Parse-failure bypass and port normalization bugs can be fixed at the same time. Takes ~20 lines total (helper + tests).
+
+**Cons:** Minor restructure of `main.go`. Not blocking — the guard is correct for the common case.
+
+**Context:** Deferred during eng review (user chose to handle later). The extract pattern is standard for Go CLI tools: put validation logic in a pure function in a separate file so it can be tested without exec'ing the binary.
+
+**Where to start:** Extract to `func checkCrossHostConflict(srvURL, flagURL string) error` in `cmd/fspeek/main.go`. Add `cmd/fspeek/main_test.go` with table-driven tests covering: same host (allow), different host (reject), parse error on srvURL (should reject, not bypass), port normalization (`host` vs `host:443`).
+
+**Depends on:** Nothing — can be done at any time.
+
+---
+
 ## TODO-4: Cache server capability (Accept-Ranges per host)
 
 **What:** Add a `server_caps` table to SQLite that stores per-host capabilities: `Accept-Ranges` support, `ETag` support, `Content-Length` availability. TTL: 24h.
