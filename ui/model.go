@@ -232,7 +232,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		if m.listingErr != nil {
 			m.loadingListing = true
-			return m, fetchListingCmd(m.baseURL, m.cache, m.client, m.lister)
+			return m, tea.Batch(
+				fetchListingCmd(m.baseURL, m.cache, m.client, m.lister),
+				spinnerCmd(),
+			)
 		}
 	}
 	return m, nil
