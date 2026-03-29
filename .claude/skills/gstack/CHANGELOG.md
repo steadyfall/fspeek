@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.13.6.0] - 2026-03-29 — GStack Learns
+
+Every session now makes the next one smarter. gstack remembers patterns, pitfalls, and preferences across sessions and uses them to improve every review, plan, debug, and ship. The more you use it, the better it gets on your codebase.
+
+### Added
+
+- **Project learnings system.** gstack automatically captures patterns and pitfalls it discovers during /review, /ship, /investigate, and other skills. Stored per-project at `~/.gstack/projects/{slug}/learnings.jsonl`. Append-only, Supabase-compatible schema.
+- **`/learn` skill.** Review what gstack has learned (`/learn`), search (`/learn search auth`), prune stale entries (`/learn prune`), export to markdown (`/learn export`), or check stats (`/learn stats`). Manually add learnings with `/learn add`.
+- **Confidence calibration.** Every review finding now includes a confidence score (1-10). High-confidence findings (7+) show normally, medium (5-6) show with a caveat, low (<5) are suppressed. No more crying wolf.
+- **"Learning applied" callouts.** When a review finding matches a past learning, gstack displays it: "Prior learning applied: [pattern] (confidence 8/10, from 2026-03-15)". You can see the compounding in action.
+- **Cross-project discovery.** gstack can search learnings from your other projects for matching patterns. Opt-in, with a one-time AskUserQuestion for consent. Stays local to your machine.
+- **Confidence decay.** Observed and inferred learnings lose 1 confidence point per 30 days. User-stated preferences never decay. A good pattern is a good pattern forever, but uncertain observations fade.
+- **Learnings count in preamble.** Every skill now shows "LEARNINGS: N entries loaded" during startup.
+- **5-release roadmap design doc.** `docs/designs/SELF_LEARNING_V0.md` maps the path from R1 (GStack Learns) through R4 (/autoship, one-command full feature) to R5 (Studio).
+
+## [0.13.5.1] - 2026-03-29 — Gitignore .factory
+
+### Changed
+
+- **Stop tracking `.factory/` directory.** Generated Factory Droid skill files are now gitignored, same as `.claude/skills/` and `.agents/`. Removes 29 generated SKILL.md files from the repo. The `setup` script and `bun run build` regenerate these on demand.
+
+## [0.13.5.0] - 2026-03-29 — Factory Droid Compatibility
+
+gstack now works with Factory Droid. Type `/qa` in Droid and get the same 29 skills you use in Claude Code. This makes gstack the first skill library that works across Claude Code, Codex, and Factory Droid.
+
+### Added
+
+- **Factory Droid support (`--host factory`).** Generate Factory-native skills with `bun run gen:skill-docs --host factory`. Skills install to `.factory/skills/` with proper frontmatter (`user-invocable: true`, `disable-model-invocation: true` for sensitive skills like /ship and /land-and-deploy).
+- **`--host all` flag.** One command generates skills for all 3 hosts. Fault-tolerant: catches per-host errors, only fails if Claude generation fails.
+- **`gstack-platform-detect` binary.** Prints a table of installed AI coding agents with versions, skill paths, and gstack status. Useful for debugging multi-host setups.
+- **Sensitive skill safety.** Six skills with side effects (ship, land-and-deploy, guard, careful, freeze, unfreeze) now declare `sensitive: true` in their templates. Factory Droids won't auto-invoke them. Claude and Codex output strips the field.
+- **Factory CI freshness check.** The skill-docs workflow now verifies Factory output is fresh on every PR.
+- **Factory awareness across operational tooling.** skill-check dashboard, gstack-uninstall, and setup script all know about Factory.
+
+### Changed
+
+- **Refactored multi-host generation.** Extracted `processExternalHost()` shared helper from the Codex-specific code block. Both Codex and Factory use the same function for output routing, symlink loop detection, frontmatter transformation, and path rewrites. Codex output is byte-identical after refactor.
+- **Build script uses `--host all`.** Replaces chained `gen:skill-docs` calls with a single `--host all` invocation.
+- **Tool name translation for Factory.** Claude Code tool names ("use the Bash tool") are translated to generic phrasing ("run this command") in Factory output, matching Factory's tool naming conventions.
+
+## [0.13.4.0] - 2026-03-29 — Sidebar Defense
+
+The Chrome sidebar now defends against prompt injection attacks. Three layers: XML-framed prompts with trust boundaries, a command allowlist that restricts bash to browse commands only, and Opus as the default model (harder to manipulate).
+
+### Fixed
+
+- **Sidebar agent now respects server-side args.** The sidebar-agent process was silently rebuilding its own Claude args from scratch, ignoring `--model`, `--allowedTools`, and other flags set by the server. Every server-side configuration change was silently dropped. Now uses the queued args.
+
+### Added
+
+- **XML prompt framing with trust boundaries.** User messages are wrapped in `<user-message>` tags with explicit instructions to treat content as data, not instructions. XML special characters (`< > &`) are escaped to prevent tag injection attacks.
+- **Bash command allowlist.** The sidebar's system prompt now restricts Claude to browse binary commands only (`$B goto`, `$B click`, `$B snapshot`, etc.). All other bash commands (`curl`, `rm`, `cat`, etc.) are forbidden. This prevents prompt injection from escalating to arbitrary code execution.
+- **Opus default for sidebar.** The sidebar now uses Opus (the most injection-resistant model) by default, instead of whatever model Claude Code happens to be running.
+- **ML prompt injection defense design doc.** Full design doc at `docs/designs/ML_PROMPT_INJECTION_KILLER.md` covering the follow-up ML classifier (DeBERTa, BrowseSafe-bench, Bun-native 5ms vision). P0 TODO for the next PR.
+
 ## [0.13.3.0] - 2026-03-28 — Lock It Down
 
 Six fixes from community PRs and bug reports. The big one: your dependency tree is now pinned. Every `bun install` resolves the exact same versions, every time. No more floating ranges pulling fresh packages from npm on every setup.

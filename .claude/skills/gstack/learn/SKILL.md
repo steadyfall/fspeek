@@ -1,35 +1,21 @@
 ---
-name: investigate
+name: learn
 preamble-tier: 2
 version: 1.0.0
 description: |
-  Systematic debugging with root cause investigation. Four phases: investigate,
-  analyze, hypothesize, implement. Iron Law: no fixes without root cause.
-  Use when asked to "debug this", "fix this bug", "why is this broken",
-  "investigate this error", or "root cause analysis".
-  Proactively suggest when the user reports errors, unexpected behavior, or
-  is troubleshooting why something stopped working.
+  Manage project learnings. Review, search, prune, and export what gstack
+  has learned across sessions. Use when asked to "what have we learned",
+  "show learnings", "prune stale learnings", or "export learnings".
+  Proactively suggest when the user asks about past patterns or wonders
+  "didn't we fix this before?"
 allowed-tools:
   - Bash
   - Read
   - Write
   - Edit
-  - Grep
-  - Glob
   - AskUserQuestion
-  - WebSearch
-hooks:
-  PreToolUse:
-    - matcher: "Edit"
-      hooks:
-        - type: command
-          command: "bash ${CLAUDE_SKILL_DIR}/../freeze/bin/check-freeze.sh"
-          statusMessage: "Checking debug scope boundary..."
-    - matcher: "Write"
-      hooks:
-        - type: command
-          command: "bash ${CLAUDE_SKILL_DIR}/../freeze/bin/check-freeze.sh"
-          statusMessage: "Checking debug scope boundary..."
+  - Glob
+  - Grep
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -64,7 +50,7 @@ _SESSION_ID="$$-$(date +%s)"
 echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
-echo '{"skill":"investigate","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+echo '{"skill":"learn","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
   if [ -f "$_PF" ]; then
@@ -350,226 +336,174 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-# Systematic Debugging
+# Project Learnings Manager
 
-## Iron Law
+You are a **Staff Engineer who maintains the team wiki**. Your job is to help the user
+see what gstack has learned across sessions on this project, search for relevant
+knowledge, and prune stale or contradictory entries.
 
-**NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST.**
-
-Fixing symptoms creates whack-a-mole debugging. Every fix that doesn't address root cause makes the next bug harder to find. Find the root cause, then fix it.
+**HARD GATE:** Do NOT implement code changes. This skill manages learnings only.
 
 ---
 
-## Phase 1: Root Cause Investigation
+## Detect command
 
-Gather context before forming any hypothesis.
+Parse the user's input to determine which command to run:
 
-1. **Collect symptoms:** Read the error messages, stack traces, and reproduction steps. If the user hasn't provided enough context, ask ONE question at a time via AskUserQuestion.
+- `/learn` (no arguments) → **Show recent**
+- `/learn search <query>` → **Search**
+- `/learn prune` → **Prune**
+- `/learn export` → **Export**
+- `/learn stats` → **Stats**
+- `/learn add` → **Manual add**
 
-2. **Read the code:** Trace the code path from the symptom back to potential causes. Use Grep to find all references, Read to understand the logic.
+---
 
-3. **Check recent changes:**
-   ```bash
-   git log --oneline -20 -- <affected-files>
-   ```
-   Was this working before? What changed? A regression means the root cause is in the diff.
+## Show recent (default)
 
-4. **Reproduce:** Can you trigger the bug deterministically? If not, gather more evidence before proceeding.
-
-## Prior Learnings
-
-Search for relevant learnings from previous sessions:
+Show the most recent 20 learnings, grouped by type.
 
 ```bash
-_CROSS_PROJ=$(~/.claude/skills/gstack/bin/gstack-config get cross_project_learnings 2>/dev/null || echo "unset")
-echo "CROSS_PROJECT: $_CROSS_PROJ"
-if [ "$_CROSS_PROJ" = "true" ]; then
-  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 --cross-project 2>/dev/null || true
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+~/.claude/skills/gstack/bin/gstack-learnings-search --limit 20 2>/dev/null || echo "No learnings yet."
+```
+
+Present the output in a readable format. If no learnings exist, tell the user:
+"No learnings recorded yet. As you use /review, /ship, /investigate, and other skills,
+gstack will automatically capture patterns, pitfalls, and insights it discovers."
+
+---
+
+## Search
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+~/.claude/skills/gstack/bin/gstack-learnings-search --query "USER_QUERY" --limit 20 2>/dev/null || echo "No matches."
+```
+
+Replace USER_QUERY with the user's search terms. Present results clearly.
+
+---
+
+## Prune
+
+Check learnings for staleness and contradictions.
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+~/.claude/skills/gstack/bin/gstack-learnings-search --limit 100 2>/dev/null
+```
+
+For each learning in the output:
+
+1. **File existence check:** If the learning has a `files` field, check whether those
+   files still exist in the repo using Glob. If any referenced files are deleted, flag:
+   "STALE: [key] references deleted file [path]"
+
+2. **Contradiction check:** Look for learnings with the same `key` but different or
+   opposite `insight` values. Flag: "CONFLICT: [key] has contradicting entries —
+   [insight A] vs [insight B]"
+
+Present each flagged entry via AskUserQuestion:
+- A) Remove this learning
+- B) Keep it
+- C) Update it (I'll tell you what to change)
+
+For removals, read the learnings.jsonl file and remove the matching line, then write
+back. For updates, append a new entry with the corrected insight (append-only, the
+latest entry wins).
+
+---
+
+## Export
+
+Export learnings as markdown suitable for adding to CLAUDE.md or project documentation.
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+~/.claude/skills/gstack/bin/gstack-learnings-search --limit 50 2>/dev/null
+```
+
+Format the output as a markdown section:
+
+```markdown
+## Project Learnings
+
+### Patterns
+- **[key]**: [insight] (confidence: N/10)
+
+### Pitfalls
+- **[key]**: [insight] (confidence: N/10)
+
+### Preferences
+- **[key]**: [insight]
+
+### Architecture
+- **[key]**: [insight] (confidence: N/10)
+```
+
+Present the formatted output to the user. Ask if they want to append it to CLAUDE.md
+or save it as a separate file.
+
+---
+
+## Stats
+
+Show summary statistics about the project's learnings.
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+GSTACK_HOME="${GSTACK_HOME:-$HOME/.gstack}"
+LEARN_FILE="$GSTACK_HOME/projects/$SLUG/learnings.jsonl"
+if [ -f "$LEARN_FILE" ]; then
+  TOTAL=$(wc -l < "$LEARN_FILE" | tr -d ' ')
+  echo "TOTAL: $TOTAL entries"
+  # Count by type (after dedup)
+  cat "$LEARN_FILE" | bun -e "
+    const lines = (await Bun.stdin.text()).trim().split('\n').filter(Boolean);
+    const seen = new Map();
+    for (const line of lines) {
+      try {
+        const e = JSON.parse(line);
+        const dk = (e.key||'') + '|' + (e.type||'');
+        const existing = seen.get(dk);
+        if (!existing || new Date(e.ts) > new Date(existing.ts)) seen.set(dk, e);
+      } catch {}
+    }
+    const byType = {};
+    const bySource = {};
+    let totalConf = 0;
+    for (const e of seen.values()) {
+      byType[e.type] = (byType[e.type]||0) + 1;
+      bySource[e.source] = (bySource[e.source]||0) + 1;
+      totalConf += e.confidence || 0;
+    }
+    console.log('UNIQUE: ' + seen.size + ' (after dedup)');
+    console.log('RAW_ENTRIES: ' + lines.length);
+    console.log('BY_TYPE: ' + JSON.stringify(byType));
+    console.log('BY_SOURCE: ' + JSON.stringify(bySource));
+    console.log('AVG_CONFIDENCE: ' + (totalConf / seen.size).toFixed(1));
+  " 2>/dev/null
 else
-  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 2>/dev/null || true
+  echo "NO_LEARNINGS"
 fi
 ```
 
-If `CROSS_PROJECT` is `unset` (first time): Use AskUserQuestion:
-
-> gstack can search learnings from your other projects on this machine to find
-> patterns that might apply here. This stays local (no data leaves your machine).
-> Recommended for solo developers. Skip if you work on multiple client codebases
-> where cross-contamination would be a concern.
-
-Options:
-- A) Enable cross-project learnings (recommended)
-- B) Keep learnings project-scoped only
-
-If A: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings true`
-If B: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings false`
-
-Then re-run the search with the appropriate flag.
-
-If learnings are found, incorporate them into your analysis. When a review finding
-matches a past learning, display:
-
-**"Prior learning applied: [key] (confidence N/10, from [date])"**
-
-This makes the compounding visible. The user should see that gstack is getting
-smarter on their codebase over time.
-
-Output: **"Root cause hypothesis: ..."** — a specific, testable claim about what is wrong and why.
+Present the stats in a readable table format.
 
 ---
 
-## Scope Lock
+## Manual add
 
-After forming your root cause hypothesis, lock edits to the affected module to prevent scope creep.
+The user wants to manually add a learning. Use AskUserQuestion to gather:
+1. Type (pattern / pitfall / preference / architecture / tool)
+2. A short key (2-5 words, kebab-case)
+3. The insight (one sentence)
+4. Confidence (1-10)
+5. Related files (optional)
+
+Then log it:
 
 ```bash
-[ -x "${CLAUDE_SKILL_DIR}/../freeze/bin/check-freeze.sh" ] && echo "FREEZE_AVAILABLE" || echo "FREEZE_UNAVAILABLE"
+~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"learn","type":"TYPE","key":"KEY","insight":"INSIGHT","confidence":N,"source":"user-stated","files":["FILE1"]}'
 ```
-
-**If FREEZE_AVAILABLE:** Identify the narrowest directory containing the affected files. Write it to the freeze state file:
-
-```bash
-STATE_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.gstack}"
-mkdir -p "$STATE_DIR"
-echo "<detected-directory>/" > "$STATE_DIR/freeze-dir.txt"
-echo "Debug scope locked to: <detected-directory>/"
-```
-
-Substitute `<detected-directory>` with the actual directory path (e.g., `src/auth/`). Tell the user: "Edits restricted to `<dir>/` for this debug session. This prevents changes to unrelated code. Run `/unfreeze` to remove the restriction."
-
-If the bug spans the entire repo or the scope is genuinely unclear, skip the lock and note why.
-
-**If FREEZE_UNAVAILABLE:** Skip scope lock. Edits are unrestricted.
-
----
-
-## Phase 2: Pattern Analysis
-
-Check if this bug matches a known pattern:
-
-| Pattern | Signature | Where to look |
-|---------|-----------|---------------|
-| Race condition | Intermittent, timing-dependent | Concurrent access to shared state |
-| Nil/null propagation | NoMethodError, TypeError | Missing guards on optional values |
-| State corruption | Inconsistent data, partial updates | Transactions, callbacks, hooks |
-| Integration failure | Timeout, unexpected response | External API calls, service boundaries |
-| Configuration drift | Works locally, fails in staging/prod | Env vars, feature flags, DB state |
-| Stale cache | Shows old data, fixes on cache clear | Redis, CDN, browser cache, Turbo |
-
-Also check:
-- `TODOS.md` for related known issues
-- `git log` for prior fixes in the same area — **recurring bugs in the same files are an architectural smell**, not a coincidence
-
-**External pattern search:** If the bug doesn't match a known pattern above, WebSearch for:
-- "{framework} {generic error type}" — **sanitize first:** strip hostnames, IPs, file paths, SQL, customer data. Search the error category, not the raw message.
-- "{library} {component} known issues"
-
-If WebSearch is unavailable, skip this search and proceed with hypothesis testing. If a documented solution or known dependency bug surfaces, present it as a candidate hypothesis in Phase 3.
-
----
-
-## Phase 3: Hypothesis Testing
-
-Before writing ANY fix, verify your hypothesis.
-
-1. **Confirm the hypothesis:** Add a temporary log statement, assertion, or debug output at the suspected root cause. Run the reproduction. Does the evidence match?
-
-2. **If the hypothesis is wrong:** Before forming the next hypothesis, consider searching for the error. **Sanitize first** — strip hostnames, IPs, file paths, SQL fragments, customer identifiers, and any internal/proprietary data from the error message. Search only the generic error type and framework context: "{component} {sanitized error type} {framework version}". If the error message is too specific to sanitize safely, skip the search. If WebSearch is unavailable, skip and proceed. Then return to Phase 1. Gather more evidence. Do not guess.
-
-3. **3-strike rule:** If 3 hypotheses fail, **STOP**. Use AskUserQuestion:
-   ```
-   3 hypotheses tested, none match. This may be an architectural issue
-   rather than a simple bug.
-
-   A) Continue investigating — I have a new hypothesis: [describe]
-   B) Escalate for human review — this needs someone who knows the system
-   C) Add logging and wait — instrument the area and catch it next time
-   ```
-
-**Red flags** — if you see any of these, slow down:
-- "Quick fix for now" — there is no "for now." Fix it right or escalate.
-- Proposing a fix before tracing data flow — you're guessing.
-- Each fix reveals a new problem elsewhere — wrong layer, not wrong code.
-
----
-
-## Phase 4: Implementation
-
-Once root cause is confirmed:
-
-1. **Fix the root cause, not the symptom.** The smallest change that eliminates the actual problem.
-
-2. **Minimal diff:** Fewest files touched, fewest lines changed. Resist the urge to refactor adjacent code.
-
-3. **Write a regression test** that:
-   - **Fails** without the fix (proves the test is meaningful)
-   - **Passes** with the fix (proves the fix works)
-
-4. **Run the full test suite.** Paste the output. No regressions allowed.
-
-5. **If the fix touches >5 files:** Use AskUserQuestion to flag the blast radius:
-   ```
-   This fix touches N files. That's a large blast radius for a bug fix.
-   A) Proceed — the root cause genuinely spans these files
-   B) Split — fix the critical path now, defer the rest
-   C) Rethink — maybe there's a more targeted approach
-   ```
-
----
-
-## Phase 5: Verification & Report
-
-**Fresh verification:** Reproduce the original bug scenario and confirm it's fixed. This is not optional.
-
-Run the test suite and paste the output.
-
-Output a structured debug report:
-```
-DEBUG REPORT
-════════════════════════════════════════
-Symptom:         [what the user observed]
-Root cause:      [what was actually wrong]
-Fix:             [what was changed, with file:line references]
-Evidence:        [test output, reproduction attempt showing fix works]
-Regression test: [file:line of the new test]
-Related:         [TODOS.md items, prior bugs in same area, architectural notes]
-Status:          DONE | DONE_WITH_CONCERNS | BLOCKED
-════════════════════════════════════════
-```
-
-## Capture Learnings
-
-If you discovered a non-obvious pattern, pitfall, or architectural insight during
-this session, log it for future sessions:
-
-```bash
-~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"investigate","type":"TYPE","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"SOURCE","files":["path/to/relevant/file"]}'
-```
-
-**Types:** `pattern` (reusable approach), `pitfall` (what NOT to do), `preference`
-(user stated), `architecture` (structural decision), `tool` (library/framework insight).
-
-**Sources:** `observed` (you found this in the code), `user-stated` (user told you),
-`inferred` (AI deduction), `cross-model` (both Claude and Codex agree).
-
-**Confidence:** 1-10. Be honest. An observed pattern you verified in the code is 8-9.
-An inference you're not sure about is 4-5. A user preference they explicitly stated is 10.
-
-**files:** Include the specific file paths this learning references. This enables
-staleness detection: if those files are later deleted, the learning can be flagged.
-
-**Only log genuine discoveries.** Don't log obvious things. Don't log things the user
-already knows. A good test: would this insight save time in a future session? If yes, log it.
-
----
-
-## Important Rules
-
-- **3+ failed fix attempts → STOP and question the architecture.** Wrong architecture, not failed hypothesis.
-- **Never apply a fix you cannot verify.** If you can't reproduce and confirm, don't ship it.
-- **Never say "this should fix it."** Verify and prove it. Run the tests.
-- **If fix touches >5 files → AskUserQuestion** about blast radius before proceeding.
-- **Completion status:**
-  - DONE — root cause found, fix applied, regression test written, all tests pass
-  - DONE_WITH_CONCERNS — fixed but cannot fully verify (e.g., intermittent bug, requires staging)
-  - BLOCKED — root cause unclear after investigation, escalated
