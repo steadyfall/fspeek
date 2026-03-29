@@ -262,6 +262,8 @@ func (m Model) navigateTo(url string, pushHistory bool) (tea.Model, tea.Cmd) {
 			m.baseURL = url
 			m.entries = entries
 			m.cursor = 0
+			m.loadingListing = false
+			m.listingErr = nil
 			m.metadata = nil
 			m.metaErr = nil
 			m.fetchNonce = ""
