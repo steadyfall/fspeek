@@ -16,7 +16,6 @@ var ErrCacheMiss = errors.New("cache miss")
 
 const (
 	currentSchemaVersion = 1
-	cacheTTL             = 24 * time.Hour
 )
 
 // SQLiteCache implements Cache using SQLite with WAL mode.
@@ -25,8 +24,12 @@ type SQLiteCache struct {
 	ttl time.Duration
 }
 
-// Open opens (or creates) the SQLite cache at path.
-func Open(path string) (*SQLiteCache, error) {
+// Open opens (or creates) the SQLite cache at path with the given TTL for entries
+// that have no ETag. Pass 0 to use the default of 24 hours.
+func Open(path string, ttl time.Duration) (*SQLiteCache, error) {
+	if ttl == 0 {
+		ttl = 24 * time.Hour
+	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -37,7 +40,7 @@ func Open(path string) (*SQLiteCache, error) {
 		return nil, fmt.Errorf("pragma: %w", err)
 	}
 
-	c := &SQLiteCache{db: db, ttl: cacheTTL}
+	c := &SQLiteCache{db: db, ttl: ttl}
 	if err := c.migrate(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)

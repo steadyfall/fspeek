@@ -12,7 +12,7 @@ import (
 func openTestCache(t *testing.T) *SQLiteCache {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
-	c, err := Open(path)
+	c, err := Open(path, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
