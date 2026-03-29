@@ -32,12 +32,14 @@ Config file: `~/.config/fspeek/config.toml`
 
 ```toml
 [settings]
-timeout = "5s"
-max_fetches = 4
+metadata_timeout_s = 5
+max_concurrent_fetches = 4
 
-[servers.myserver]
+[[server]]
+name = "myserver"
 url = "https://media.example.com/"
-[servers.myserver.auth]
+[server.auth]
+type = "basic"
 username = "user"
 password = "pass"
 ```
