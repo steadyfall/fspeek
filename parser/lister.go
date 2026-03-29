@@ -17,6 +17,23 @@ type DirectoryLister interface {
 	List(ctx context.Context, url string, client *http.Client) ([]cache.Entry, error)
 }
 
+// cascadeLister implements DirectoryLister by trying multiple listers in order.
+type cascadeLister struct {
+	listers []DirectoryLister
+}
+
+// NewCascade returns a DirectoryLister that tries each provided lister in order,
+// returning the result of the first one that succeeds. If a lister returns
+// ErrNoMatch it is skipped. If all fail, the last non-ErrNoMatch error (or
+// ErrNoMatch if all returned ErrNoMatch) is returned.
+func NewCascade(listers ...DirectoryLister) DirectoryLister {
+	return cascadeLister{listers: listers}
+}
+
+func (c cascadeLister) List(ctx context.Context, url string, client *http.Client) ([]cache.Entry, error) {
+	return Cascade(ctx, url, client, c.listers)
+}
+
 // Cascade tries each lister in order and returns the result of the first one
 // that succeeds (returns nil error). If a lister returns ErrNoMatch it is
 // skipped. If all listers fail, the last non-ErrNoMatch error (or ErrNoMatch
