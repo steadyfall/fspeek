@@ -215,7 +215,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.entries) > 0 {
 			e := m.entries[m.cursor]
 			if e.IsDir {
-				return m.navigateTo(e.URL)
+				return m.navigateTo(e.URL, true)
 			}
 		}
 
@@ -223,7 +223,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.history) > 0 {
 			parent := m.history[len(m.history)-1]
 			m.history = m.history[:len(m.history)-1]
-			return m.navigateTo(parent)
+			return m.navigateTo(parent, false)
 		}
 
 	case "s":
@@ -252,11 +252,13 @@ func (m *Model) moveCursor() tea.Cmd {
 }
 
 // navigateTo switches the current directory.
-func (m Model) navigateTo(url string) (tea.Model, tea.Cmd) {
+func (m Model) navigateTo(url string, pushHistory bool) (tea.Model, tea.Cmd) {
 	// Try cache first.
 	if m.cache != nil {
 		if entries, _, err := m.cache.GetListing(url); err == nil {
-			m.history = append(m.history, m.baseURL)
+			if pushHistory {
+				m.history = append(m.history, m.baseURL)
+			}
 			m.baseURL = url
 			m.entries = entries
 			m.cursor = 0
@@ -273,7 +275,9 @@ func (m Model) navigateTo(url string) (tea.Model, tea.Cmd) {
 		}
 	}
 	// Cache miss: fetch from server.
-	m.history = append(m.history, m.baseURL)
+	if pushHistory {
+		m.history = append(m.history, m.baseURL)
+	}
 	m.baseURL = url
 	m.entries = nil
 	m.loadingListing = true
