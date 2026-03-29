@@ -327,6 +327,59 @@ func TestFormatDirSize(t *testing.T) {
 	}
 }
 
+// Regression: ISSUE-004 — back navigation cycles between current dir and immediate
+// parent instead of traversing the full history stack.
+func TestUpdate_BackNav_DeepHistory(t *testing.T) {
+	sc := newStubCache()
+	sc.listings["http://x/"] = []cache.Entry{
+		{Name: "a/", URL: "http://x/a/", IsDir: true},
+	}
+	sc.listings["http://x/a/"] = []cache.Entry{
+		{Name: "b/", URL: "http://x/a/b/", IsDir: true},
+	}
+	sc.listings["http://x/a/b/"] = []cache.Entry{
+		{Name: "file.mkv", URL: "http://x/a/b/file.mkv"},
+	}
+
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	newM, _ := m.Update(listingMsg{url: "http://x/", entries: sc.listings["http://x/"]})
+	m = newM.(Model)
+
+	// Forward: root -> a/
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	m = newM.(Model)
+	// Forward: a/ -> a/b/
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	m = newM.(Model)
+
+	if m.baseURL != "http://x/a/b/" {
+		t.Fatalf("after 2 forward navs: baseURL=%q, want http://x/a/b/", m.baseURL)
+	}
+	if len(m.history) != 2 {
+		t.Fatalf("after 2 forward navs: history len=%d, want 2: %v", len(m.history), m.history)
+	}
+
+	// Back once: must land at a/, not re-enter a/b/
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	m = newM.(Model)
+	if m.baseURL != "http://x/a/" {
+		t.Errorf("after 1st back: baseURL=%q, want http://x/a/", m.baseURL)
+	}
+	if len(m.history) != 1 {
+		t.Errorf("after 1st back: history len=%d, want 1: %v", len(m.history), m.history)
+	}
+
+	// Back twice: must land at root
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	m = newM.(Model)
+	if m.baseURL != "http://x/" {
+		t.Errorf("after 2nd back: baseURL=%q, want http://x/", m.baseURL)
+	}
+	if len(m.history) != 0 {
+		t.Errorf("after 2nd back: history len=%d, want 0: %v", len(m.history), m.history)
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) > 0 && len(sub) > 0 && (s == sub || len(s) >= len(sub) &&
 		func() bool {
