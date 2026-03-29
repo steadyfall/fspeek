@@ -357,6 +357,7 @@ func (m *Model) launchMetaFetchCmd() tea.Cmd {
 func (m *Model) prefetchNext() tea.Cmd {
 	var cmds []tea.Cmd
 	count := 0
+	cacheInst := m.cache
 	for i := m.cursor + 1; i < len(m.entries) && count < 3; i++ {
 		e := m.entries[i]
 		if e.IsDir || m.prefetched[e.URL] {
@@ -380,9 +381,8 @@ func (m *Model) prefetchNext() tea.Cmd {
 			}
 			defer sem.Release(1)
 			meta, err := fetcher.Dispatch(ctx, eURL, client, fetchers)
-			if err == nil && meta != nil {
-				// Store in cache silently; the result isn't used directly here.
-				_ = meta
+			if err == nil && meta != nil && cacheInst != nil {
+				_ = cacheInst.SetMetadata(eURL, meta, "")
 			}
 			return nil // discard — just a background warm-up
 		})
