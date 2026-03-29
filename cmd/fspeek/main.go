@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -63,6 +64,18 @@ func main() {
 		fmt.Fprintln(os.Stderr, "fspeek: --url or --server required")
 		flag.Usage()
 		os.Exit(1)
+	}
+
+	// Guard: refuse to send named-server credentials to a different host.
+	if srv != nil && *flagURL != "" {
+		srvU, e1 := url.Parse(srv.URL)
+		rootU, e2 := url.Parse(rootURL)
+		if e1 == nil && e2 == nil && srvU.Host != rootU.Host {
+			fmt.Fprintf(os.Stderr,
+				"fspeek: --url host %q differs from server %q host %q — credentials would leak\n",
+				rootU.Host, *flagServer, srvU.Host)
+			os.Exit(1)
+		}
 	}
 
 	// Ensure URL ends with / (it's a directory).
