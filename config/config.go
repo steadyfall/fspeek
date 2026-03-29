@@ -14,8 +14,8 @@ import (
 
 // Config holds the full parsed configuration.
 type Config struct {
-	Settings Settings  `toml:"settings"`
-	Servers  []Server  `toml:"server"`
+	Settings Settings `toml:"settings"`
+	Servers  []Server `toml:"server"`
 }
 
 // Settings contains global operational parameters.
