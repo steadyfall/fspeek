@@ -4,7 +4,6 @@ package cache
 
 import (
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/steadyfall/fspeek/fetcher"
@@ -49,10 +48,9 @@ type Cache interface {
 }
 
 // Canonicalize normalizes a URL for use as a cache key:
-//   - Percent-encoding is normalized (decoded then re-encoded).
+//   - Percent-encoding is normalized via the standard url package round-trip.
 //   - Query parameters are stripped.
 //   - Fragment is stripped.
-//   - Trailing slashes are added to directory-like paths (paths ending in / or with no extension).
 func Canonicalize(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -61,22 +59,8 @@ func Canonicalize(rawURL string) string {
 	// Strip query and fragment.
 	u.RawQuery = ""
 	u.Fragment = ""
-
-	// Normalize percent-encoding: decode and re-encode path.
-	decoded, err := url.PathUnescape(u.Path)
-	if err == nil {
-		// Re-encode only special characters.
-		u.Path = encodePath(decoded)
-	}
-
+	// Clear RawPath so url.String() re-encodes Path using standard encoding,
+	// avoiding double-encoding of already-decoded paths.
+	u.RawPath = ""
 	return u.String()
-}
-
-// encodePath re-encodes a decoded path, preserving slashes.
-func encodePath(p string) string {
-	segments := strings.Split(p, "/")
-	for i, seg := range segments {
-		segments[i] = url.PathEscape(seg)
-	}
-	return strings.Join(segments, "/")
 }
