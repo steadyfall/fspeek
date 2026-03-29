@@ -1,0 +1,20 @@
+# Binary output
+fspeek
+
+# Go build artifacts
+*.test
+*.out
+/vendor/
+
+# Test coverage
+coverage.html
+coverage.out
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
