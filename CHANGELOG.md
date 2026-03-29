@@ -1,0 +1,42 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [0.1.0.0] - 2026-03-29
+
+### Added
+
+- TUI two-pane file browser with Vim keybindings (`h/j/k/l`, `enter`, `backspace`, `q`, `r`, `s`) powered by Bubbletea and lipgloss (`ui/`)
+- MP4 metadata extraction via HTTP range requests — duration, video codec, resolution, audio codec (`fetcher/mp4.go`)
+- MKV/WebM metadata extraction via EBML range parsing — duration, video track dimensions, audio codec (`fetcher/mkv.go`)
+- SRT subtitle metadata extraction — duration from last timestamp, subtitle count (`fetcher/srt.go`)
+- `DirectoryLister` interface with three implementations: NginxJSON autoindex, generic href scraper, standard nginx HTML autoindex, and a `Cascade` fallback combinator (`parser/`)
+- SQLite-backed directory listing and metadata cache with 24 h TTL, `modernc.org/sqlite` (pure Go, no CGO) (`cache/`)
+- TOML config loader supporting `[settings]` (timeout, max fetches, cache TTL, bytes display) and `[servers.<name>]` named servers with Basic/Bearer auth (`config/`)
+- Authenticated `http.Client` builder with custom `RoundTripper` for Basic and Bearer auth (`config/config.go`)
+- CLI entry point with `--url`, `--server`, `--no-cache`, `--bytes`, `--version` flags and cross-host credential-leak guard (`cmd/fspeek/`)
+- Nonce-based stale fetch protection: metadata results are dropped if `fetchNonce` no longer matches the selected file
+- Semaphore-bounded concurrent metadata prefetch (configurable via `max_fetches`)
+- Debounced metadata fetch on cursor move (100 ms) to avoid fetching on rapid scrolling
+- URL percent-encoding in `joinURL` to handle filenames with spaces and special characters
+
+### Fixed
+
+- `io.ReadAll` on HTTP 206 responses is now capped to `end-start+1` bytes via `io.LimitReader` to prevent OOM if a server ignores the Range end byte and streams the full file (`fetcher/range.go`)
+- Retry key `r` now batches `spinnerCmd()` alongside the fetch cmd so the spinner animates during the refetch instead of freezing on the last frame (`ui/model.go`)
+- Cache `Invalidate` deletes are wrapped in a transaction for atomicity (`cache/sqlite.go`)
+- `CacheTTLHours` config value is now wired to `SQLiteCache` TTL instead of being ignored (`cache/sqlite.go`, `cmd/fspeek/main.go`)
+- `navigateTo` no longer re-pushes the current URL onto history when navigating back, preventing duplicate history entries (`ui/model.go`)
+- `prefetchNext` closures now capture the `cache` reference correctly so metadata is actually stored (`ui/model.go`)
+- `loadingListing` and `listingErr` are cleared on cached-hit navigation to avoid showing stale error state (`ui/model.go`)
+- Cross-host `--server` + `--url` combination is now rejected to prevent credential leak to attacker-supplied URL (`cmd/fspeek/main.go`)
+- `joinURL` now percent-encodes path segments to prevent URL corruption on filenames with spaces (`parser/`)
+- `Canonicalize` in the SQLite cache no longer double-encodes already-percent-encoded URLs (`cache/sqlite.go`)
+
+### Added (tests)
+
+- Full test suite for all packages: `cache`, `config`, `fetcher`, `parser`, `ui`
+- Regression tests for `joinURL` encoding and cached-nav state machine
+- QA-driven coverage additions: `Dispatch` Accept-Ranges branches, `NewCascade`/`cascadeLister.List`, `formatDirSize` partial branch
