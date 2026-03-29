@@ -308,6 +308,25 @@ func TestView_BasicRender(t *testing.T) {
 	}
 }
 
+// Regression: ISSUE-003 — formatDirSize renders count/size and optional (partial) suffix
+// Found by /qa on 2026-03-29
+// Report: .gstack/qa-reports/qa-report-fspeek-2026-03-29.md
+func TestFormatDirSize(t *testing.T) {
+	d := &cache.DirSize{FileCount: 3, TotalSize: 1024, Partial: false}
+	got := formatDirSize(d, true)
+	want := "3 files / 1024 B"
+	if got != want {
+		t.Errorf("formatDirSize(partial=false, bytes=true) = %q, want %q", got, want)
+	}
+
+	d.Partial = true
+	got = formatDirSize(d, true)
+	want = "3 files / 1024 B (partial)"
+	if got != want {
+		t.Errorf("formatDirSize(partial=true, bytes=true) = %q, want %q", got, want)
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) > 0 && len(sub) > 0 && (s == sub || len(s) >= len(sub) &&
 		func() bool {
