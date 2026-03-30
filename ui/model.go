@@ -326,8 +326,13 @@ func clampCursor(saved, max int) int {
 
 // navigateTo switches the current directory.
 func (m Model) navigateTo(url string, pushHistory bool) (tea.Model, tea.Cmd) {
-	// Remember where we were before leaving.
-	m.cursorMap[m.baseURL] = m.cursor
+	// Remember where we were before leaving — but only when entries are fully
+	// loaded. If a listing is still in-flight, m.cursor is a temporary
+	// placeholder (0) and must not overwrite a valid saved position from a
+	// prior visit.
+	if !m.loadingListing {
+		m.cursorMap[m.baseURL] = m.cursor
+	}
 	m.filterQuery = ""
 	m.filterMode = false
 	m.cursor = 0
