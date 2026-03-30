@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.13.8.0] - 2026-03-29 — Security Audit Round 2
+
+Browse output is now wrapped in trust boundary markers so agents can tell page content from tool output. Markers are escape-proof. The Chrome extension validates message senders. CDP binds to localhost only. Bun installs use checksum verification.
+
+### Fixed
+
+- **Trust boundary markers are escape-proof.** URLs sanitized (no newlines), marker strings escaped in content. A malicious page can't forge the END marker to break out of the untrusted block.
+
+### Added
+
+- **Content trust boundary markers.** Every browse command that returns page content (`text`, `html`, `links`, `forms`, `accessibility`, `console`, `dialog`, `snapshot`, `diff`, `resume`, `watch stop`) wraps output in `--- BEGIN/END UNTRUSTED EXTERNAL CONTENT ---` markers. Agents know what's page content vs tool output.
+- **Extension sender validation.** Chrome extension rejects messages from unknown senders and enforces a message type allowlist. Prevents cross-extension message spoofing.
+- **CDP localhost-only binding.** `bin/chrome-cdp` now passes `--remote-debugging-address=127.0.0.1` and `--remote-allow-origins` to prevent remote debugging exposure.
+- **Checksum-verified bun install.** The browse SKILL.md bootstrap now downloads the bun install script to a temp file and verifies SHA-256 before executing. No more piping curl to bash.
+
+### Removed
+
+- **Factory Droid support.** Removed `--host factory`, `.factory/` generated skills, Factory CI checks, and all Factory-specific code paths.
+
+## [0.13.7.0] - 2026-03-29 — Community Wave
+
+Six community fixes with 16 new tests. Telemetry off now means off everywhere. Skills are findable by name. And changing your prefix setting actually works now.
+
+### Fixed
+
+- **Telemetry off means off everywhere.** When you set telemetry to off, gstack no longer writes local JSONL analytics files. Previously "off" only stopped remote reporting. Now nothing is written anywhere. Clean trust contract.
+- **`find -delete` replaced with POSIX `-exec rm`.** Safety Net and other non-GNU environments no longer choke on session cleanup.
+- **No more preemptive context warnings.** `/plan-eng-review` no longer warns you about running low on context. The system handles compaction automatically.
+- **Sidebar security test updated** for Write tool fallback string change.
+- **`gstack-relink` no longer double-prefixes `gstack-upgrade`.** Setting `skill_prefix=true` was creating `gstack-gstack-upgrade` instead of keeping the existing name. Now matches `setup` script behavior.
+
+### Added
+
+- **Skill discoverability.** Every skill description now contains "(gstack)" so you can find gstack skills by searching in Claude Code's command palette.
+- **Feature signal detection in `/ship`.** Version bump now checks for new routes, migrations, test+source pairs, and `feat/` branches. Catches MINOR-worthy changes that line count alone misses.
+- **Sidebar Write tool.** Both the sidebar agent and headed-mode server now include Write in allowedTools. Write doesn't expand the attack surface beyond what Bash already provides.
+- **Sidebar stderr capture.** The sidebar agent now buffers stderr and includes it in error and timeout messages instead of silently discarding it.
+- **`bin/gstack-relink`** re-creates skill symlinks when you change `skill_prefix` via `gstack-config set`. No more manual `./setup` re-run needed.
+- **`bin/gstack-open-url`** cross-platform URL opener (macOS: `open`, Linux: `xdg-open`, Windows: `start`).
+
 ## [0.13.6.0] - 2026-03-29 — GStack Learns
 
 Every session now makes the next one smarter. gstack remembers patterns, pitfalls, and preferences across sessions and uses them to improve every review, plan, debug, and ship. The more you use it, the better it gets on your codebase.
