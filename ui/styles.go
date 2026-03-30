@@ -38,6 +38,10 @@ var (
 			Foreground(lipgloss.Color(SpectralTheme.DirFg)).
 			Bold(true)
 
+	// Secondary stat text (file size, dir item count) — dimmer than the entry name.
+	statStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(SpectralTheme.StatFg))
+
 	// Metadata sidebar sections.
 	metaLabelStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(SpectralTheme.MetaLabelFg)).

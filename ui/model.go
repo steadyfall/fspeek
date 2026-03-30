@@ -471,17 +471,28 @@ func (m Model) renderList(width, height int) string {
 		} else if e.Size >= 0 {
 			suffix = "  " + formatSize(e.Size, m.showBytes)
 		}
-		line := formatName(name, e.IsDir) + suffix
+		plainName := formatName(name, e.IsDir)
+		truncated := truncate(plainName+suffix, width)
 
-		var style lipgloss.Style
 		if i == m.cursor {
-			style = cursorStyle.Width(width)
-		} else if e.IsDir {
-			style = dirStyle
+			lines = append(lines, cursorStyle.Width(width).Render(truncated))
 		} else {
-			style = normalStyle
+			var ns lipgloss.Style
+			if e.IsDir {
+				ns = dirStyle
+			} else {
+				ns = normalStyle
+			}
+			nameRunes := []rune(plainName)
+			truncRunes := []rune(truncated)
+			if len(truncRunes) <= len(nameRunes) {
+				// Name itself was truncated — no stat visible.
+				lines = append(lines, ns.Render(truncated))
+			} else {
+				statPart := string(truncRunes[len(nameRunes):])
+				lines = append(lines, ns.Render(plainName)+statStyle.Render(statPart))
+			}
 		}
-		lines = append(lines, style.Render(truncate(line, width)))
 	}
 
 	// Window the visible lines around the cursor.
