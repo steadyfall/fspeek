@@ -34,6 +34,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [0.1.1.0] - 2026-03-30
 
+### Added
+
+- Cursor position persisted per directory URL across the session; revisiting a directory restores the last-used cursor position, clamped to the current entry count (`ui/model.go`)
+
 ### Changed
 
 - fspeek now uses the Spectral theme, with thicker pane borders, a stronger status bar, and clearer contrast between the file list and metadata pane.
@@ -41,6 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Cursor position for a previously-visited directory was silently clobbered when the user backed out before an in-flight listing arrived; saved cursor is now preserved by skipping the write when `loadingListing` is true (`ui/model.go:273`)
 - Selected directory rows now stay readable instead of inheriting conflicting colors.
 - Directory rows no longer render with a double trailing slash.
 
