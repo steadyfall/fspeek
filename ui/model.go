@@ -592,9 +592,9 @@ func row(label, value string) string {
 
 func formatName(name string, isDir bool) string {
 	if isDir {
-		return dirStyle.Render(name + "/")
+		return name + "/"
 	}
-	return normalStyle.Render(name)
+	return name
 }
 
 func formatSize(n int64, showBytes bool) string {
