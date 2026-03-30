@@ -9,6 +9,7 @@ type Theme struct {
 	// Left pane — navigation
 	NormalFg string
 	DirFg    string
+	StatFg   string
 	CursorFg string
 	CursorBg string
 
@@ -39,6 +40,7 @@ var SpectralTheme = Theme{
 	BorderColor:    "241",
 	NormalFg:       "252",
 	DirFg:          "39",
+	StatFg:         "240",
 	CursorFg:       "232",
 	CursorBg:       "45",
 	MetaTitleFg:    "209",
