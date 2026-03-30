@@ -1350,7 +1350,7 @@ func TestCursorNotCorrupted_FailedLoad(t *testing.T) {
 	root := []cache.Entry{
 		{Name: "file.mp4", URL: "http://x/file.mp4"},
 		{Name: "sub/", URL: "http://x/sub/", IsDir: true},
-		{Name: "other.mkv", URL: "http://x/other.mkv"},
+		{Name: "zzz.mkv", URL: "http://x/zzz.mkv"},
 	}
 	sc.listings["http://x/"] = root
 	// sub/ NOT in cache.
@@ -1368,7 +1368,7 @@ func TestCursorNotCorrupted_FailedLoad(t *testing.T) {
 		t.Fatalf("cursor = %d, want 2", m.cursor)
 	}
 
-	// Navigate into sub/ (cache miss) - cursor in root saved as 2, cursor reset to 0.
+	// Navigate into sub/ (cache miss) — cursor in root saved as 1, cursor reset to 0.
 	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")}) // back to index 1
 	m = newM.(Model)
 	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")}) // to index 2 again
@@ -1411,6 +1411,49 @@ func TestCursorNotCorrupted_FailedLoad(t *testing.T) {
 	// Cursor should be 0 - the stale parent cursor (1) must NOT have been saved under sub/.
 	if m2.cursor != 0 {
 		t.Errorf("cursor in sub/ after successful revisit = %d, want 0 (must not restore stale parent cursor)", m2.cursor)
+	}
+}
+
+// Regression: backing out of a cache-miss directory before its listing arrives
+// must not overwrite a previously saved cursor for that directory with 0.
+func TestCursorPreserved_BackoutDuringLoad(t *testing.T) {
+	sc := newStubCache()
+	root := []cache.Entry{
+		{Name: "a.txt", URL: "http://x/a.txt"},
+		{Name: "child/", URL: "http://x/child/", IsDir: true},
+	}
+	sc.listings["http://x/"] = root
+	// child/ is NOT in cache — navigation will be a cache-miss.
+
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	newM, _ := m.Update(listingMsg{url: "http://x/", entries: root})
+	m = newM.(Model)
+
+	// Simulate a prior visit to child/ with the cursor at position 1.
+	m.cursorMap["http://x/child/"] = 1
+
+	// Move root cursor onto child/ (index 1) and navigate in.
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m = newM.(Model) // cursor = 1
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	m = newM.(Model)
+	if m.baseURL != "http://x/child/" {
+		t.Fatalf("baseURL = %q, want http://x/child/", m.baseURL)
+	}
+	if !m.loadingListing {
+		t.Fatal("expected loadingListing=true after cache-miss navigation")
+	}
+
+	// Back out immediately — listing has NOT arrived yet.
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	m = newM.(Model)
+	if m.baseURL != "http://x/" {
+		t.Fatalf("baseURL = %q, want http://x/", m.baseURL)
+	}
+
+	// The prior saved cursor for child/ must still be 1, not clobbered to 0.
+	if got := m.cursorMap["http://x/child/"]; got != 1 {
+		t.Errorf("cursorMap[child/] = %d, want 1 (must not be clobbered during in-flight load)", got)
 	}
 }
 
