@@ -24,6 +24,7 @@ fspeek --url https://example.com/files/
 fspeek --server myserver          # named server from config
 fspeek --url ... --no-cache       # skip local cache
 fspeek --url ... --bytes          # show sizes in bytes
+fspeek --version                  # print the shipped version
 ```
 
 ## Configuration
@@ -55,3 +56,8 @@ password = "pass"
 | `s` | Toggle byte sizes |
 | `r` | Retry |
 | `q` / `Ctrl+C` | Quit |
+
+## Project Docs
+
+- [`docs/DESIGN.md`](docs/DESIGN.md) explains the Spectral TUI design system and theme tokens.
+- [`docs/TODOS.md`](docs/TODOS.md) tracks intentionally deferred follow-up work.

@@ -59,6 +59,7 @@ go vet ./...
 - Add goroutines inside bubbletea `Update()` — return a `tea.Cmd` instead
 - Commit the `fspeek` binary
 
-## Deferred work
+## Project docs
 
-See `TODOS.md` for: goreleaser/CI, additional format fetchers (MP3, FLAC, JPEG), Docker integration tests, per-host capability caching.
+- `docs/DESIGN.md` documents the Spectral theme, layout decisions, and UI tokens.
+- `docs/TODOS.md` tracks intentionally deferred follow-up work.
