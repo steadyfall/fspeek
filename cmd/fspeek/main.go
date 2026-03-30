@@ -19,7 +19,7 @@ import (
 	"github.com/steadyfall/fspeek/ui"
 )
 
-const version = "1.0.0"
+const version = "0.1.1.0"
 
 func main() {
 	var (
