@@ -468,6 +468,27 @@ func TestFormatName_ReturnsPlainText(t *testing.T) {
 	}
 }
 
+func TestClampCursor(t *testing.T) {
+	cases := []struct {
+		saved, max, want int
+	}{
+		{0, 0, 0},  // empty dir
+		{3, 0, 0},  // empty dir, non-zero saved
+		{0, 5, 0},  // first visit (map miss -> Go zero value)
+		{1, 5, 1},  // normal
+		{4, 5, 4},  // last valid index
+		{5, 5, 4},  // saved == max -> clamp to max-1
+		{9, 5, 4},  // saved > max
+		{-1, 5, 0}, // negative (defensive)
+	}
+	for _, c := range cases {
+		got := clampCursor(c.saved, c.max)
+		if got != c.want {
+			t.Errorf("clampCursor(%d, %d) = %d, want %d", c.saved, c.max, got, c.want)
+		}
+	}
+}
+
 // --- padRight tests ---
 
 func TestPadRight_ASCII(t *testing.T) {
@@ -1187,6 +1208,209 @@ func TestPrefetchNext_RespectsFilter(t *testing.T) {
 		if m2.prefetched[url] {
 			t.Errorf("prefetchNext with filter: %s should NOT be prefetched (not in filtered view)", url)
 		}
+	}
+}
+
+func TestCursorRestored_BackNav_CacheHit(t *testing.T) {
+	sc := newStubCache()
+	// root: two entries, subfolder at index 1
+	root := []cache.Entry{
+		{Name: "file.mp4", URL: "http://x/file.mp4"},
+		{Name: "sub/", URL: "http://x/sub/", IsDir: true},
+	}
+	subEntries := []cache.Entry{
+		{Name: "a.mkv", URL: "http://x/sub/a.mkv"},
+	}
+	sc.listings["http://x/"] = root
+	sc.listings["http://x/sub/"] = subEntries
+
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	// Load root.
+	newM, _ := m.Update(listingMsg{url: "http://x/", entries: root})
+	m = newM.(Model)
+
+	// Move cursor to index 1 (sub/).
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m = newM.(Model)
+	if m.cursor != 1 {
+		t.Fatalf("cursor before nav = %d, want 1", m.cursor)
+	}
+
+	// Navigate into sub/ (cache hit).
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	m = newM.(Model)
+	if m.baseURL != "http://x/sub/" {
+		t.Fatalf("baseURL = %q, want http://x/sub/", m.baseURL)
+	}
+
+	// Navigate back.
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	m = newM.(Model)
+
+	if m.baseURL != "http://x/" {
+		t.Errorf("baseURL after back = %q, want http://x/", m.baseURL)
+	}
+	if m.cursor != 1 {
+		t.Errorf("cursor after back = %d, want 1 (restored)", m.cursor)
+	}
+}
+
+func TestCursorRestored_BackNav_CacheMiss(t *testing.T) {
+	sc := newStubCache()
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	// Pre-populate cursorMap to simulate a previously-visited URL.
+	m.cursorMap["http://x/"] = 3
+
+	entries := []cache.Entry{
+		{Name: "a.mp4", URL: "http://x/a.mp4"},
+		{Name: "b.mkv", URL: "http://x/b.mkv"},
+		{Name: "c.srt", URL: "http://x/c.srt"},
+		{Name: "d.mp4", URL: "http://x/d.mp4"},
+	}
+	newM, _ := m.Update(listingMsg{url: "http://x/", entries: entries})
+	m2 := newM.(Model)
+
+	if m2.cursor != 3 {
+		t.Errorf("cursor after listingMsg = %d, want 3 (restored from cursorMap)", m2.cursor)
+	}
+}
+
+func TestCursorClamped_DirectoryShrank(t *testing.T) {
+	sc := newStubCache()
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	m.cursorMap["http://x/"] = 5 // previously had cursor at 5
+
+	entries := []cache.Entry{
+		{Name: "a.mp4", URL: "http://x/a.mp4"},
+		{Name: "b.mkv", URL: "http://x/b.mkv"},
+		{Name: "c.srt", URL: "http://x/c.srt"},
+	}
+	newM, _ := m.Update(listingMsg{url: "http://x/", entries: entries})
+	m2 := newM.(Model)
+
+	if m2.cursor != 2 {
+		t.Errorf("cursor = %d, want 2 (clamped to len-1)", m2.cursor)
+	}
+}
+
+func TestCursorRestored_E2E_CacheMissSave(t *testing.T) {
+	sc := newStubCache()
+	// root is in cache; sub is NOT (forces cache-miss path in navigateTo).
+	root := []cache.Entry{
+		{Name: "file.mp4", URL: "http://x/file.mp4"},
+		{Name: "sub/", URL: "http://x/sub/", IsDir: true},
+	}
+	sc.listings["http://x/"] = root
+	// sub/ intentionally NOT in cache.
+
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	newM, _ := m.Update(listingMsg{url: "http://x/", entries: root})
+	m = newM.(Model)
+
+	// Move cursor to index 1 (sub/).
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m = newM.(Model)
+	if m.cursor != 1 {
+		t.Fatalf("cursor before nav = %d, want 1", m.cursor)
+	}
+
+	// Navigate into sub/ (cache miss - navigateTo fires save, then issues fetch).
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	m = newM.(Model)
+	if m.baseURL != "http://x/sub/" {
+		t.Fatalf("baseURL = %q, want http://x/sub/", m.baseURL)
+	}
+	// The save should have recorded cursor=1 for root.
+	if m.cursorMap["http://x/"] != 1 {
+		t.Errorf("cursorMap[root] = %d, want 1 (saved before cache-miss navigate)", m.cursorMap["http://x/"])
+	}
+
+	// Simulate listing arriving for sub/.
+	subEntries := []cache.Entry{{Name: "a.mkv", URL: "http://x/sub/a.mkv"}}
+	newM, _ = m.Update(listingMsg{url: "http://x/sub/", entries: subEntries})
+	m = newM.(Model)
+
+	// Navigate back to root (cache hit).
+	sc.listings["http://x/"] = root // ensure root is still in cache
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	m = newM.(Model)
+
+	if m.baseURL != "http://x/" {
+		t.Errorf("baseURL = %q, want http://x/", m.baseURL)
+	}
+	if m.cursor != 1 {
+		t.Errorf("cursor = %d, want 1 (restored from cursorMap after cache-miss save)", m.cursor)
+	}
+}
+
+// Regression: navigating to a cache-miss URL that later fails to load must not
+// pollute cursorMap with the parent's cursor under the child's key.
+func TestCursorNotCorrupted_FailedLoad(t *testing.T) {
+	sc := newStubCache()
+	root := []cache.Entry{
+		{Name: "file.mp4", URL: "http://x/file.mp4"},
+		{Name: "sub/", URL: "http://x/sub/", IsDir: true},
+		{Name: "other.mkv", URL: "http://x/other.mkv"},
+	}
+	sc.listings["http://x/"] = root
+	// sub/ NOT in cache.
+
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	newM, _ := m.Update(listingMsg{url: "http://x/", entries: root})
+	m = newM.(Model)
+
+	// Move cursor to index 2.
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m = newM.(Model)
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m = newM.(Model)
+	if m.cursor != 2 {
+		t.Fatalf("cursor = %d, want 2", m.cursor)
+	}
+
+	// Navigate into sub/ (cache miss) - cursor in root saved as 2, cursor reset to 0.
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")}) // back to index 1
+	m = newM.(Model)
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")}) // to index 2 again
+	m = newM.(Model)
+	// Navigate to sub/ from index 1 - move cursor to 1 first.
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	m = newM.(Model) // cursor = 1 (on sub/)
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	m = newM.(Model)
+	if m.baseURL != "http://x/sub/" {
+		t.Fatalf("baseURL = %q, want http://x/sub/", m.baseURL)
+	}
+	// cursor should be 0 (reset in cache-miss path).
+	if m.cursor != 0 {
+		t.Errorf("cursor after cache-miss nav = %d, want 0", m.cursor)
+	}
+
+	// Simulate fetch error for sub/.
+	newM, _ = m.Update(listingMsg{url: "http://x/sub/", err: errors.New("connection refused")})
+	m = newM.(Model)
+	if m.listingErr == nil {
+		t.Fatal("expected listingErr to be set")
+	}
+
+	// Navigate back to root.
+	newM, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	m = newM.(Model)
+	if m.baseURL != "http://x/" {
+		t.Fatalf("baseURL = %q, want http://x/", m.baseURL)
+	}
+
+	// Now navigate to sub/ again successfully.
+	m.cursor = 1 // point at sub/
+	subEntries := []cache.Entry{{Name: "a.mkv", URL: "http://x/sub/a.mkv"}}
+	newM, _ = m.navigateTo("http://x/sub/", true)
+	m = newM.(Model)
+	newM, _ = m.Update(listingMsg{url: "http://x/sub/", entries: subEntries})
+	m2 := newM.(Model)
+
+	// Cursor should be 0 - the stale parent cursor (1) must NOT have been saved under sub/.
+	if m2.cursor != 0 {
+		t.Errorf("cursor in sub/ after successful revisit = %d, want 0 (must not restore stale parent cursor)", m2.cursor)
 	}
 }
 
