@@ -413,6 +413,23 @@ func TestNavigateTo_CachedHit_ClearsLoadingState(t *testing.T) {
 	}
 }
 
+// Regression: formatName must return plain text with no embedded ANSI escape codes.
+// Previously, dirStyle and normalStyle were pre-applied inside formatName, embedding
+// color codes into the string before the row-level cursor style was applied. When the
+// cursor row then wrapped the line in cursorStyle, the embedded foreground color
+// persisted and overrode the cursor's foreground — making directory names unreadable
+// (electric blue on cyan background).
+func TestFormatName_ReturnsPlainText(t *testing.T) {
+	got := formatName("subdir", true)
+	if got != "subdir/" {
+		t.Errorf("formatName(dir) = %q, want plain %q (no embedded ANSI codes)", got, "subdir/")
+	}
+	got = formatName("movie.mp4", false)
+	if got != "movie.mp4" {
+		t.Errorf("formatName(file) = %q, want plain %q (no embedded ANSI codes)", got, "movie.mp4")
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) > 0 && len(sub) > 0 && (s == sub || len(s) >= len(sub) &&
 		func() bool {
