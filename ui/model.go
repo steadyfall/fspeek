@@ -464,9 +464,8 @@ func (m Model) renderList(width, height int) string {
 		name := e.Name
 		suffix := ""
 		if e.IsDir {
-			suffix = "/"
 			if e.DirSize != nil {
-				suffix += fmt.Sprintf("  %s", formatDirSize(e.DirSize, m.showBytes))
+				suffix = "  " + formatDirSize(e.DirSize, m.showBytes)
 			}
 		} else if e.Size >= 0 {
 			suffix = "  " + formatSize(e.Size, m.showBytes)

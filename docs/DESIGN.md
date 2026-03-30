@@ -20,6 +20,7 @@ Defined in `ui/theme.go` (`SpectralTheme`). Never hard-code color values in styl
 | `BorderColor` | 241 — dark gray | Pane borders |
 | `NormalFg` | 252 — light gray | Default list text |
 | `DirFg` | 39 — electric blue | Directory entries |
+| `StatFg` | 240 — dark gray | File size / dir count (dimmed secondary text) |
 | `CursorFg` | 232 — near-black | Selected row text |
 | `CursorBg` | 45 — bright cyan | Selected row background |
 | `MetaTitleFg` | 209 — coral | Metadata pane title |
