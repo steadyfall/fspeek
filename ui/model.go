@@ -64,10 +64,11 @@ type spinnerTickMsg struct{}
 // Model is the bubbletea model for fspeek.
 type Model struct {
 	// Directory state.
-	baseURL string
-	entries []cache.Entry
-	cursor  int
-	history []string // stack of parent URLs for navigation back
+	baseURL   string
+	entries   []cache.Entry
+	cursor    int
+	history   []string       // stack of parent URLs for navigation back
+	cursorMap map[string]int // remembered cursor index per URL (session-scoped)
 
 	// Listing fetch state.
 	loadingListing bool
@@ -120,6 +121,7 @@ func New(rootURL string, opts Options) Model {
 		baseURL:    rootURL,
 		history:    []string{},
 		prefetched: map[string]bool{},
+		cursorMap:  map[string]int{},
 		showBytes:  opts.ShowBytes,
 		cache:      opts.Cache,
 		client:     opts.Client,
@@ -157,7 +159,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.listingErr = nil
 		m.entries = msg.entries
-		m.cursor = 0
+		m.cursor = clampCursor(m.cursorMap[m.baseURL], len(m.entries))
 		m.metadata = nil
 		m.metaErr = nil
 		m.fetchNonce = ""
@@ -311,8 +313,21 @@ func (m *Model) moveCursor() tea.Cmd {
 	return m.debounceMetaCmd()
 }
 
+// clampCursor returns saved clamped to [0, max), or 0 if max == 0.
+func clampCursor(saved, max int) int {
+	if max == 0 || saved <= 0 {
+		return 0
+	}
+	if saved >= max {
+		return max - 1
+	}
+	return saved
+}
+
 // navigateTo switches the current directory.
 func (m Model) navigateTo(url string, pushHistory bool) (tea.Model, tea.Cmd) {
+	// Remember where we were before leaving.
+	m.cursorMap[m.baseURL] = m.cursor
 	m.filterQuery = ""
 	m.filterMode = false
 	m.cursor = 0
@@ -324,7 +339,7 @@ func (m Model) navigateTo(url string, pushHistory bool) (tea.Model, tea.Cmd) {
 			}
 			m.baseURL = url
 			m.entries = entries
-			m.cursor = 0
+			m.cursor = clampCursor(m.cursorMap[url], len(entries))
 			m.loadingListing = false
 			m.listingErr = nil
 			m.metadata = nil
@@ -345,6 +360,7 @@ func (m Model) navigateTo(url string, pushHistory bool) (tea.Model, tea.Cmd) {
 		m.history = append(m.history, m.baseURL)
 	}
 	m.baseURL = url
+	m.cursor = 0 // reset so backing out before load completes doesn't pollute cursorMap
 	m.entries = nil
 	m.loadingListing = true
 	m.listingErr = nil
