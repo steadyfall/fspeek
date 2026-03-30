@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.1.0] - 2026-03-30
+
+### Changed
+
+- fspeek now uses the Spectral theme, with thicker pane borders, a stronger status bar, and clearer contrast between the file list and metadata pane.
+- File sizes and directory counts are now dimmed so names are easier to scan in the list.
+
+### Fixed
+
+- Selected directory rows now stay readable instead of inheriting conflicting colors.
+- Directory rows no longer render with a double trailing slash.
+
 ## [0.1.0.0] - 2026-03-29
 
 ### Added
