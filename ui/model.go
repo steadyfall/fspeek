@@ -61,6 +61,10 @@ type debounceMsg struct{ nonce string }
 // spinnerTickMsg drives the spinner animation.
 type spinnerTickMsg struct{}
 
+// initMsg is sent by Init() so the first Update() call can do cache-first
+// loading with proper state mutation (loading indicator, etc.).
+type initMsg struct{}
+
 // Model is the bubbletea model for fspeek.
 type Model struct {
 	// Directory state.
@@ -133,9 +137,10 @@ func New(rootURL string, opts Options) Model {
 	}
 }
 
-// Init issues the initial directory listing fetch.
+// Init triggers the initial update cycle via a sentinel message so Update()
+// can perform cache-first loading with proper state mutation.
 func (m Model) Init() tea.Cmd {
-	return fetchListingCmd(m.baseURL, m.cache, m.client, m.lister)
+	return func() tea.Msg { return initMsg{} }
 }
 
 // Update handles all messages and key events (tea.Cmd discipline: no goroutines here).
@@ -146,6 +151,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
+
+	// --- Initial startup: cache-first, fall back to HTTP ---
+	case initMsg:
+		if m.cache != nil {
+			if entries, _, err := m.cache.GetListing(m.baseURL); err == nil {
+				return m, m.applyFromCache(entries)
+			}
+		}
+		// Cache miss, cache error, or no cache: fetch from HTTP with loading indicator.
+		m.loadingListing = true
+		return m, tea.Batch(
+			fetchListingCmd(m.baseURL, m.cache, m.client, m.lister),
+			spinnerCmd(),
+		)
 
 	// --- Directory listing result ---
 	case listingMsg:
@@ -289,7 +308,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filterMode = true
 
 	case "r":
-		if m.listingErr != nil {
+		if !m.loadingListing {
+			if m.cancel != nil {
+				m.cancel()
+				m.cancel = nil
+			}
+			m.fetching = false
+			m.metadata = nil
+			m.metaErr = nil
+			m.fetchNonce = ""
 			m.loadingListing = true
 			return m, tea.Batch(
 				fetchListingCmd(m.baseURL, m.cache, m.client, m.lister),
@@ -322,6 +349,29 @@ func clampCursor(saved, max int) int {
 		return max - 1
 	}
 	return saved
+}
+
+// applyFromCache populates model state from a cache hit and returns the
+// debounce command to kick off metadata fetch for the selected entry.
+// Used by the initMsg handler (cursor always resets to 0 on startup).
+func (m *Model) applyFromCache(entries []cache.Entry) tea.Cmd {
+	m.loadingListing = false
+	m.listingErr = nil
+	m.entries = entries
+	m.cursor = 0
+	m.metadata = nil
+	m.metaErr = nil
+	m.fetchNonce = ""
+	m.prefetched = map[string]bool{}
+	if m.cache != nil {
+		for i, e := range m.entries {
+			if e.IsDir {
+				m.entries[i].DirSize = m.cache.ComputeDirSize(e.URL)
+			}
+		}
+	}
+	sortEntries(m.entries, m.sortBy)
+	return m.debounceMetaCmd()
 }
 
 // navigateTo switches the current directory.
@@ -531,7 +581,7 @@ func (m Model) View() string {
 
 	status := m.renderStatus()
 	help := helpStyle.Width(m.width).Render(
-		"↑/k up  ↓/j down  l/enter dir  h/backspace/← back  s sort  b bytes  / filter  esc exit  r retry  q quit",
+		"↑/k up  ↓/j down  l/enter dir  h/backspace/← back  s sort  b bytes  / filter  esc exit  r refresh  q quit",
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, panes, status, help)
