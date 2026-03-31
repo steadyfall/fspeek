@@ -313,9 +313,18 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.cancel()
 				m.cancel = nil
 			}
+			// Invalidate cached metadata for the selected file so force-refresh
+			// fetches fresh data rather than serving a stale cache hit.
+			if m.cache != nil {
+				if url := m.currentURL(); url != "" {
+					_ = m.cache.Invalidate(url)
+				}
+			}
 			m.fetching = false
+			m.entries = nil
 			m.metadata = nil
 			m.metaErr = nil
+			m.listingErr = nil
 			m.fetchNonce = ""
 			m.loadingListing = true
 			return m, tea.Batch(
@@ -872,7 +881,7 @@ func (m Model) renderStatus() string {
 	}
 	if m.listingErr != nil {
 		return statusErrStyle.Width(m.width).Render(
-			"Error fetching listing — press r to retry",
+			"Error fetching listing — press r to refresh",
 		)
 	}
 	path := m.baseURL
