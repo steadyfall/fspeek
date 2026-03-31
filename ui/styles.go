@@ -42,6 +42,10 @@ var (
 	statStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(SpectralTheme.StatFg))
 
+	// Partial-listing indicator (~) — amber signals incomplete cache data.
+	partialStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(SpectralTheme.PartialFg))
+
 	// Metadata sidebar sections.
 	metaLabelStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(SpectralTheme.MetaLabelFg)).

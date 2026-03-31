@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
+	"github.com/mattn/go-runewidth"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/steadyfall/fspeek/cache"
@@ -22,6 +24,15 @@ import (
 
 // spinnerFrames is the animation sequence for the loading indicator.
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+// SortBy controls the active sort column.
+type SortBy int
+
+const (
+	SortByName  SortBy = iota // default: alphabetical
+	SortByCount               // ascending file count
+	SortBySize                // ascending total size
+)
 
 // --- Messages ---
 
@@ -68,10 +79,13 @@ type Model struct {
 	prefetched map[string]bool
 
 	// UI settings.
-	showBytes bool
-	width     int
-	height    int
-	spinFrame int
+	showBytes   bool
+	sortBy      SortBy
+	filterQuery string
+	filterMode  bool
+	width       int
+	height      int
+	spinFrame   int
 
 	// Dependencies (injected).
 	cache    cache.Cache
@@ -155,6 +169,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+		sortEntries(m.entries, m.sortBy)
 		return m, m.debounceMetaCmd()
 
 	// --- Debounce timer fired ---
@@ -195,6 +210,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Filter mode captures printable input; navigation keys fall through.
+	if m.filterMode {
+		switch msg.String() {
+		case "esc":
+			m.filterMode = false
+			m.filterQuery = ""
+			m.cursor = 0
+			return m, nil
+		case "backspace":
+			if len(m.filterQuery) > 0 {
+				runes := []rune(m.filterQuery)
+				m.filterQuery = string(runes[:len(runes)-1])
+				m.cursor = 0
+			}
+			return m, nil
+		default:
+			// Navigation keys (arrow keys, enter, etc.) are non-rune special keys —
+			// they fall through to normal key handling so up/down/enter still work
+			// in filter mode. Letter keys (tea.KeyRunes) type into the filter.
+			if msg.Type == tea.KeyRunes {
+				m.filterQuery += string(msg.Runes)
+				m.cursor = 0
+				return m, nil
+			}
+			// fall through to normal key handling
+		}
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
@@ -206,14 +249,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "down", "j":
-		if m.cursor < len(m.entries)-1 {
+		if m.cursor < len(m.visibleEntries())-1 {
 			m.cursor++
 			return m, m.moveCursor()
 		}
 
 	case "l", "enter", "right":
-		if len(m.entries) > 0 {
-			e := m.entries[m.cursor]
+		visible := m.visibleEntries()
+		if len(visible) > 0 && m.cursor < len(visible) {
+			e := visible[m.cursor]
 			if e.IsDir {
 				return m.navigateTo(e.URL, true)
 			}
@@ -226,8 +270,16 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.navigateTo(parent, false)
 		}
 
-	case "s":
+	case "b":
 		m.showBytes = !m.showBytes
+
+	case "s":
+		m.sortBy = (m.sortBy + 1) % 3
+		sortEntries(m.entries, m.sortBy)
+		m.cursor = 0
+
+	case "/":
+		m.filterMode = true
 
 	case "r":
 		if m.listingErr != nil {
@@ -256,6 +308,9 @@ func (m *Model) moveCursor() tea.Cmd {
 
 // navigateTo switches the current directory.
 func (m Model) navigateTo(url string, pushHistory bool) (tea.Model, tea.Cmd) {
+	m.filterQuery = ""
+	m.filterMode = false
+	m.cursor = 0
 	// Try cache first.
 	if m.cache != nil {
 		if entries, _, err := m.cache.GetListing(url); err == nil {
@@ -276,6 +331,7 @@ func (m Model) navigateTo(url string, pushHistory bool) (tea.Model, tea.Cmd) {
 					m.entries[i].DirSize = m.cache.ComputeDirSize(e.URL)
 				}
 			}
+			sortEntries(m.entries, m.sortBy)
 			return m, m.debounceMetaCmd()
 		}
 	}
@@ -298,10 +354,11 @@ func (m Model) navigateTo(url string, pushHistory bool) (tea.Model, tea.Cmd) {
 
 // currentURL returns the URL of the currently selected entry, or "".
 func (m *Model) currentURL() string {
-	if len(m.entries) == 0 || m.cursor >= len(m.entries) {
+	visible := m.visibleEntries()
+	if len(visible) == 0 || m.cursor >= len(visible) {
 		return ""
 	}
-	return m.entries[m.cursor].URL
+	return visible[m.cursor].URL
 }
 
 // debounceMetaCmd starts the 150ms debounce timer for the current entry.
@@ -310,7 +367,11 @@ func (m *Model) debounceMetaCmd() tea.Cmd {
 	if nonce == "" {
 		return nil
 	}
-	entry := m.entries[m.cursor]
+	visible := m.visibleEntries()
+	if m.cursor >= len(visible) {
+		return nil
+	}
+	entry := visible[m.cursor]
 	if entry.IsDir {
 		return nil
 	}
@@ -441,7 +502,7 @@ func (m Model) View() string {
 
 	status := m.renderStatus()
 	help := helpStyle.Width(m.width).Render(
-		"↑/k up  ↓/j down  l/enter dir  h/backspace back  s bytes  r retry  q quit",
+		"↑/k up  ↓/j down  l/enter dir  h/back  s sort  b bytes  / filter  r retry  q quit",
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, panes, status, help)
@@ -459,22 +520,110 @@ func (m Model) renderList(width, height int) string {
 		return normalStyle.Render("(empty directory)")
 	}
 
-	var lines []string
-	for i, e := range m.entries {
-		name := e.Name
-		suffix := ""
-		if e.IsDir {
-			if e.DirSize != nil {
-				suffix = "  " + formatDirSize(e.DirSize, m.showBytes)
-			}
-		} else if e.Size >= 0 {
-			suffix = "  " + formatSize(e.Size, m.showBytes)
+	// Pass 1 — compute column widths (scan ALL entries for consistent name width).
+	maxNameW, maxCountW, maxSizeW := 0, 0, 0
+	for _, e := range m.entries {
+		nw := runewidth.StringWidth(formatName(e.Name, e.IsDir))
+		if nw > maxNameW {
+			maxNameW = nw
 		}
-		plainName := formatName(name, e.IsDir)
-		truncated := truncate(plainName+suffix, width)
+		if e.IsDir && e.DirSize != nil {
+			cw := runewidth.StringWidth(fmt.Sprintf("%d files", e.DirSize.FileCount))
+			sw := runewidth.StringWidth(formatSize(e.DirSize.TotalSize, m.showBytes))
+			if cw > maxCountW {
+				maxCountW = cw
+			}
+			if sw > maxSizeW {
+				maxSizeW = sw
+			}
+		} else if !e.IsDir && e.Size >= 0 {
+			sw := runewidth.StringWidth(formatSize(e.Size, m.showBytes))
+			if sw > maxSizeW {
+				maxSizeW = sw
+			}
+		}
+	}
+	const colGap = 4
+	gap := strings.Repeat(" ", colGap)
+	hasStats := maxCountW > 0 || maxSizeW > 0
+	// +colGap+1: colGap space + "~" for the partial column
+	fullColW := maxNameW + colGap + maxCountW + colGap + maxSizeW + colGap + 1
+	useColumns := hasStats && width >= fullColW
 
-		if i == m.cursor {
-			lines = append(lines, cursorStyle.Width(width).Render(truncated))
+	// Build header line (columnar mode only).
+	var headerLine string
+	entryHeight := height
+	if useColumns {
+		boldStat := statStyle.Bold(true)
+		headerName := padRight("NAME", maxNameW)
+		headerCount := padRight("COUNT", maxCountW)
+		headerSize := padRight("SIZE", maxSizeW)
+
+		countHeader := boldStat.Render(gap + headerCount)
+		if m.sortBy == SortByCount {
+			countHeader = boldStat.Render(gap+headerCount) + dirStyle.Render(" ▲")
+		}
+		sizeHeader := boldStat.Render(gap + headerSize)
+		if m.sortBy == SortBySize {
+			sizeHeader = boldStat.Render(gap+headerSize) + dirStyle.Render(" ▲")
+		}
+		headerLine = boldStat.Render(headerName) + countHeader + sizeHeader
+		entryHeight = height - 1
+	}
+
+	// Get filtered visible entries.
+	visible := m.visibleEntries()
+
+	// Handle empty filter result.
+	if len(visible) == 0 && m.filterQuery != "" {
+		if useColumns {
+			return strings.Join([]string{headerLine, normalStyle.Render("(no matches)")}, "\n")
+		}
+		return normalStyle.Render("(no matches)")
+	}
+
+	// Clamp cursor.
+	cursor := m.cursor
+	if len(visible) > 0 && cursor >= len(visible) {
+		cursor = len(visible) - 1
+	}
+
+	// Build entry rows.
+	var entryLines []string
+	for i, e := range visible {
+		plainName := formatName(e.Name, e.IsDir)
+
+		var statText string
+		var partialSuffix string
+		if useColumns {
+			if e.IsDir && e.DirSize != nil {
+				countStr := fmt.Sprintf("%d files", e.DirSize.FileCount)
+				sizeStr := formatSize(e.DirSize.TotalSize, m.showBytes)
+				statText = gap + padRight(countStr, maxCountW) + gap + padRight(sizeStr, maxSizeW)
+			} else if !e.IsDir && e.Size >= 0 {
+				sizeStr := formatSize(e.Size, m.showBytes)
+				statText = gap + strings.Repeat(" ", maxCountW) + gap + padRight(sizeStr, maxSizeW)
+			}
+			if e.IsDir && e.DirSize != nil && e.DirSize.Partial {
+				partialSuffix = gap + "~"
+			}
+		} else {
+			// Adaptive fallback: compact format.
+			if e.IsDir && e.DirSize != nil {
+				statText = "  " + formatDirSize(e.DirSize, m.showBytes)
+			} else if !e.IsDir && e.Size >= 0 {
+				statText = "  " + formatSize(e.Size, m.showBytes)
+			}
+		}
+
+		if i == cursor {
+			var fullLine string
+			if useColumns {
+				fullLine = truncate(padRight(plainName, maxNameW)+statText+partialSuffix, width)
+			} else {
+				fullLine = truncate(plainName+statText, width)
+			}
+			entryLines = append(entryLines, cursorStyle.Width(width).Render(fullLine))
 		} else {
 			var ns lipgloss.Style
 			if e.IsDir {
@@ -482,38 +631,65 @@ func (m Model) renderList(width, height int) string {
 			} else {
 				ns = normalStyle
 			}
-			nameRunes := []rune(plainName)
-			truncRunes := []rune(truncated)
-			if len(truncRunes) <= len(nameRunes) {
-				// Name itself was truncated — no stat visible.
-				lines = append(lines, ns.Render(truncated))
+			if useColumns {
+				full := truncate(padRight(plainName, maxNameW)+statText+partialSuffix, width)
+				nameDisplayW := runewidth.StringWidth(plainName)
+				if runewidth.StringWidth(full) <= nameDisplayW {
+					entryLines = append(entryLines, ns.Render(full))
+				} else {
+					statAndPartial := string([]rune(full)[len([]rune(plainName)):])
+					rendered := ns.Render(plainName)
+					if partialSuffix != "" && strings.HasSuffix(statAndPartial, "~") {
+						withoutTilde := statAndPartial[:len(statAndPartial)-1]
+						rendered += statStyle.Render(withoutTilde) + partialStyle.Render("~")
+					} else {
+						rendered += statStyle.Render(statAndPartial)
+					}
+					entryLines = append(entryLines, rendered)
+				}
 			} else {
-				statPart := string(truncRunes[len(nameRunes):])
-				lines = append(lines, ns.Render(plainName)+statStyle.Render(statPart))
+				truncated := truncate(plainName+statText, width)
+				nameRunes := []rune(plainName)
+				truncRunes := []rune(truncated)
+				if len(truncRunes) <= len(nameRunes) {
+					entryLines = append(entryLines, ns.Render(truncated))
+				} else {
+					statPart := string(truncRunes[len(nameRunes):])
+					entryLines = append(entryLines, ns.Render(plainName)+statStyle.Render(statPart))
+				}
 			}
 		}
 	}
 
-	// Window the visible lines around the cursor.
+	// Window entry lines around the cursor.
 	start := 0
-	if m.cursor >= height {
-		start = m.cursor - height + 1
+	if cursor >= entryHeight {
+		start = cursor - entryHeight + 1
 	}
-	end := start + height
-	if end > len(lines) {
-		end = len(lines)
+	end := start + entryHeight
+	if end > len(entryLines) {
+		end = len(entryLines)
 	}
-	return strings.Join(lines[start:end], "\n")
+	windowed := entryLines[start:end]
+
+	if useColumns {
+		all := make([]string, 0, 1+len(windowed))
+		all = append(all, headerLine)
+		all = append(all, windowed...)
+		return strings.Join(all, "\n")
+	}
+	return strings.Join(windowed, "\n")
 }
 
 func (m Model) renderMeta(width, _ int) string {
-	if len(m.entries) == 0 {
+	visible := m.visibleEntries()
+	if len(visible) == 0 {
 		return ""
 	}
-	if m.cursor >= len(m.entries) {
+	if m.cursor >= len(visible) {
 		return ""
 	}
-	e := m.entries[m.cursor]
+	e := visible[m.cursor]
 	if e.IsDir {
 		var sb strings.Builder
 		sb.WriteString(metaTitleStyle.Render(e.Name + "/"))
@@ -581,6 +757,9 @@ func (m Model) renderMeta(width, _ int) string {
 }
 
 func (m Model) renderStatus() string {
+	if m.filterMode || m.filterQuery != "" {
+		return statusBarStyle.Width(m.width).Render("/ " + m.filterQuery + "_")
+	}
 	if m.listingErr != nil {
 		return statusErrStyle.Width(m.width).Render(
 			"Error fetching listing — press r to retry",
@@ -595,6 +774,74 @@ func (m Model) renderStatus() string {
 }
 
 // --- Helpers ---
+
+// visibleEntries returns the filtered subset of m.entries when a filter query is
+// active, or m.entries directly when no filter is set. The cursor always indexes
+// into the slice returned by this function.
+func (m Model) visibleEntries() []cache.Entry {
+	if m.entries == nil {
+		return nil
+	}
+	if m.filterQuery == "" {
+		return m.entries
+	}
+	q := strings.ToLower(m.filterQuery)
+	var out []cache.Entry
+	for _, e := range m.entries {
+		if strings.Contains(strings.ToLower(e.Name), q) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// sortEntries sorts entries in-place by the given column.
+// Entries with nil DirSize sort to the bottom for count and size sorts.
+func sortEntries(entries []cache.Entry, by SortBy) {
+	if entries == nil {
+		return
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		switch by {
+		case SortByCount:
+			ci := int64(0)
+			if entries[i].DirSize != nil {
+				ci = entries[i].DirSize.FileCount
+			}
+			cj := int64(0)
+			if entries[j].DirSize != nil {
+				cj = entries[j].DirSize.FileCount
+			}
+			return ci < cj
+		case SortBySize:
+			si := int64(0)
+			if entries[i].DirSize != nil {
+				si = entries[i].DirSize.TotalSize
+			} else if entries[i].Size >= 0 {
+				si = entries[i].Size
+			}
+			sj := int64(0)
+			if entries[j].DirSize != nil {
+				sj = entries[j].DirSize.TotalSize
+			} else if entries[j].Size >= 0 {
+				sj = entries[j].Size
+			}
+			return si < sj
+		default: // SortByName
+			return entries[i].Name < entries[j].Name
+		}
+	})
+}
+
+// padRight pads s with spaces on the right to reach display width w.
+// Uses runewidth to handle double-width Unicode characters correctly.
+func padRight(s string, w int) string {
+	cur := runewidth.StringWidth(s)
+	if cur >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-cur)
+}
 
 func row(label, value string) string {
 	return metaLabelStyle.Render(label+":") + " " + metaValueStyle.Render(value) + "\n"
