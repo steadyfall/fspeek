@@ -194,6 +194,41 @@ func TestUpdate_KeyQ_Quits(t *testing.T) {
 	}
 }
 
+func TestUpdate_KeyEsc_QuitsInNormalMode(t *testing.T) {
+	// Regression: ISSUE-001 — esc in normal mode was a no-op; help bar advertised "esc exit"
+	// Found by /qa on 2026-03-31
+	// Report: .gstack/qa-reports/qa-report-directory-pane-customization-2026-03-31.md
+	sc := newStubCache()
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	if cmd == nil {
+		t.Fatal("esc in normal mode: expected quit cmd, got nil")
+	}
+	msg := cmd()
+	if msg != tea.Quit() {
+		t.Errorf("esc in normal mode: expected tea.Quit, got %T", msg)
+	}
+}
+
+func TestUpdate_KeyEsc_ClearsFilterInFilterMode(t *testing.T) {
+	// Regression: esc in filter mode should clear filter, NOT quit
+	sc := newStubCache()
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	m.filterMode = true
+	m.filterQuery = "foo"
+	newM, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	m2 := newM.(Model)
+	if cmd != nil {
+		t.Errorf("esc in filter mode: expected nil cmd (not quit), got non-nil")
+	}
+	if m2.filterMode {
+		t.Error("esc in filter mode: filterMode should be false")
+	}
+	if m2.filterQuery != "" {
+		t.Errorf("esc in filter mode: filterQuery should be empty, got %q", m2.filterQuery)
+	}
+}
+
 func TestUpdate_CursorMovement(t *testing.T) {
 	sc := newStubCache()
 	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
