@@ -1457,6 +1457,192 @@ func TestCursorPreserved_BackoutDuringLoad(t *testing.T) {
 	}
 }
 
+// --- Stubs for initMsg / r-key tests ---
+
+type countingLister struct {
+	stubLister
+	calls int
+}
+
+func (l *countingLister) List(ctx context.Context, url string, client *http.Client) ([]cache.Entry, error) {
+	l.calls++
+	return l.stubLister.List(ctx, url, client)
+}
+
+type trackingCache struct {
+	*stubCache
+	setListingCalls int
+}
+
+func (c *trackingCache) SetListing(url string, entries []cache.Entry, etag string) error {
+	c.setListingCalls++
+	return c.stubCache.SetListing(url, entries, etag)
+}
+
+// --- initMsg / r-key tests ---
+
+func TestInit_CacheHit_NoHTTP(t *testing.T) {
+	sc := newStubCache()
+	entries := []cache.Entry{{Name: "file.mp4", URL: "http://x/file.mp4", Size: 1024}}
+	sc.listings["http://x/"] = entries
+	cl := &countingLister{stubLister: stubLister{entries: entries}}
+
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: cl})
+	newM, _ := m.Update(initMsg{})
+	m2 := newM.(Model)
+
+	if m2.loadingListing {
+		t.Error("loadingListing should be false on cache hit")
+	}
+	if len(m2.entries) != 1 {
+		t.Errorf("entries len = %d, want 1", len(m2.entries))
+	}
+	if cl.calls != 0 {
+		t.Errorf("HTTP calls = %d, want 0 (cache hit must skip HTTP)", cl.calls)
+	}
+}
+
+func TestInit_CacheMiss_FetchesHTTP(t *testing.T) {
+	sc := newStubCache() // empty — cache miss
+	entries := []cache.Entry{{Name: "file.mp4", URL: "http://x/file.mp4", Size: 1024}}
+	cl := &countingLister{stubLister: stubLister{entries: entries}}
+
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: cl})
+	newM, cmd := m.Update(initMsg{})
+	m2 := newM.(Model)
+
+	if !m2.loadingListing {
+		t.Error("loadingListing should be true on cache miss")
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd on cache miss")
+	}
+	// Execute the batch sub-commands to trigger the HTTP fetch.
+	if bm, ok := cmd().(tea.BatchMsg); ok {
+		for _, c := range bm {
+			if c != nil {
+				c()
+			}
+		}
+	}
+	if cl.calls != 1 {
+		t.Errorf("HTTP calls = %d, want 1 after executing cmd", cl.calls)
+	}
+}
+
+func TestInit_NilCache_FetchesHTTP(t *testing.T) {
+	entries := []cache.Entry{{Name: "file.mp4", URL: "http://x/file.mp4", Size: 1024}}
+	cl := &countingLister{stubLister: stubLister{entries: entries}}
+
+	m := New("http://x/", Options{Cache: nil, Client: http.DefaultClient, Lister: cl})
+	newM, cmd := m.Update(initMsg{})
+	m2 := newM.(Model)
+
+	if !m2.loadingListing {
+		t.Error("loadingListing should be true when cache is nil")
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd when cache is nil")
+	}
+	// Execute the batch sub-commands to trigger the HTTP fetch.
+	if bm, ok := cmd().(tea.BatchMsg); ok {
+		for _, c := range bm {
+			if c != nil {
+				c()
+			}
+		}
+	}
+	if cl.calls != 1 {
+		t.Errorf("HTTP calls = %d, want 1 after executing cmd", cl.calls)
+	}
+}
+
+func TestUpdate_InitMsg_CacheHit_DoesNotSaveCache(t *testing.T) {
+	sc := newStubCache()
+	entries := []cache.Entry{{Name: "file.mp4", URL: "http://x/file.mp4", Size: 1024}}
+	sc.listings["http://x/"] = entries
+	tc := &trackingCache{stubCache: sc}
+
+	m := New("http://x/", Options{Cache: tc, Client: http.DefaultClient, Lister: stubLister{}})
+	m.Update(initMsg{})
+
+	if tc.setListingCalls != 0 {
+		t.Errorf("SetListing calls = %d, want 0 (TTL must not be reset on cache hit)", tc.setListingCalls)
+	}
+}
+
+func TestUpdate_ListingMsg_FromHTTP_SavesCache(t *testing.T) {
+	sc := newStubCache()
+	tc := &trackingCache{stubCache: sc}
+
+	m := New("http://x/", Options{Cache: tc, Client: http.DefaultClient, Lister: stubLister{}})
+	entries := []cache.Entry{{Name: "file.mp4", URL: "http://x/file.mp4", Size: 1024}}
+	m.Update(listingMsg{url: "http://x/", entries: entries})
+
+	if tc.setListingCalls != 1 {
+		t.Errorf("SetListing calls = %d, want 1 after listingMsg", tc.setListingCalls)
+	}
+}
+
+func TestKey_R_ForceRefreshOnSuccess(t *testing.T) {
+	sc := newStubCache()
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	m.entries = []cache.Entry{{Name: "file.mp4", URL: "http://x/file.mp4", Size: 1024}}
+	m.loadingListing = false
+	m.listingErr = nil
+	m.metadata = &fetcher.Metadata{Format: "Video / MP4"}
+	m.fetchNonce = "http://x/file.mp4"
+
+	newM, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	m2 := newM.(Model)
+
+	if !m2.loadingListing {
+		t.Error("loadingListing should be true after r on success")
+	}
+	if cmd == nil {
+		t.Error("expected non-nil cmd after r")
+	}
+	if m2.metadata != nil {
+		t.Error("metadata should be nil after r (stale right-pane cleared)")
+	}
+	if m2.fetchNonce != "" {
+		t.Errorf("fetchNonce should be empty after r, got %q", m2.fetchNonce)
+	}
+}
+
+func TestKey_R_ForceRefreshOnError(t *testing.T) {
+	sc := newStubCache()
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	m.loadingListing = false
+	m.listingErr = errors.New("connection refused")
+
+	newM, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	m2 := newM.(Model)
+
+	if !m2.loadingListing {
+		t.Error("loadingListing should be true after r on error")
+	}
+	if cmd == nil {
+		t.Error("expected non-nil cmd after r on error")
+	}
+}
+
+func TestKey_R_NoopDuringInFlight(t *testing.T) {
+	sc := newStubCache()
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	m.loadingListing = true // fetch already in-flight
+
+	newM, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
+	m2 := newM.(Model)
+
+	if !m2.loadingListing {
+		t.Error("loadingListing should still be true when r is no-op")
+	}
+	if cmd != nil {
+		t.Error("cmd should be nil when r is no-op during in-flight fetch")
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) > 0 && len(sub) > 0 && (s == sub || len(s) >= len(sub) &&
 		func() bool {
