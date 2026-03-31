@@ -531,12 +531,12 @@ func TestSortEntries_BySize(t *testing.T) {
 func TestSortEntries_NilDirSize(t *testing.T) {
 	entries := []cache.Entry{
 		{Name: "a/", IsDir: true, DirSize: &cache.DirSize{FileCount: 5}},
-		{Name: "b/", IsDir: true, DirSize: nil}, // nil → treated as 0
+		{Name: "b/", IsDir: true, DirSize: nil}, // nil → sorts to bottom
 	}
 	sortEntries(entries, SortByCount)
-	// nil DirSize → count 0, sorts first in ascending.
-	if entries[0].Name != "b/" {
-		t.Errorf("SortByCount with nil DirSize: expected b/ first, got %s", entries[0].Name)
+	// nil DirSize → sentinel MaxInt64, sorts last in ascending.
+	if entries[0].Name != "a/" {
+		t.Errorf("SortByCount with nil DirSize: expected a/ first (nil last), got %s", entries[0].Name)
 	}
 }
 
@@ -554,25 +554,25 @@ func TestHandleKey_SortCycle(t *testing.T) {
 	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
 	m.entries = []cache.Entry{{Name: "a.mp4"}}
 
-	// SortByName → SortByCount
-	newM, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
-	m2 := newM.(Model)
-	if m2.sortBy != SortByCount {
-		t.Errorf("after 1st s: sortBy=%d, want SortByCount(%d)", m2.sortBy, SortByCount)
+	steps := []struct {
+		want SortBy
+		name string
+	}{
+		{SortByCount, "SortByCount"},
+		{SortBySize, "SortBySize"},
+		{SortByNameDesc, "SortByNameDesc"},
+		{SortByCountDesc, "SortByCountDesc"},
+		{SortBySizeDesc, "SortBySizeDesc"},
+		{SortByName, "SortByName (wrap)"},
 	}
 
-	// SortByCount → SortBySize
-	newM, _ = m2.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
-	m3 := newM.(Model)
-	if m3.sortBy != SortBySize {
-		t.Errorf("after 2nd s: sortBy=%d, want SortBySize(%d)", m3.sortBy, SortBySize)
-	}
-
-	// SortBySize → SortByName (wraps)
-	newM, _ = m3.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
-	m4 := newM.(Model)
-	if m4.sortBy != SortByName {
-		t.Errorf("after 3rd s: sortBy=%d, want SortByName(%d)", m4.sortBy, SortByName)
+	cur := tea.Model(m)
+	for i, step := range steps {
+		newM, _ := cur.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+		cur = newM
+		if newM.(Model).sortBy != step.want {
+			t.Errorf("after %d s: sortBy=%d, want %s(%d)", i+1, newM.(Model).sortBy, step.name, step.want)
+		}
 	}
 }
 
@@ -936,6 +936,118 @@ func TestRenderStatus_FilterMode(t *testing.T) {
 	out := m.renderStatus()
 	if !containsStr(out, "/ test_") {
 		t.Errorf("renderStatus filter mode: got %q, want to contain '/ test_'", out)
+	}
+}
+
+// --- Descending sort tests ---
+
+func TestSortEntries_ByNameDesc(t *testing.T) {
+	entries := []cache.Entry{
+		{Name: "c"}, {Name: "a"}, {Name: "b"},
+	}
+	sortEntries(entries, SortByNameDesc)
+	if entries[0].Name != "c" || entries[1].Name != "b" || entries[2].Name != "a" {
+		t.Errorf("SortByNameDesc: got %v", entries)
+	}
+}
+
+func TestSortEntries_ByCountDesc(t *testing.T) {
+	entries := []cache.Entry{
+		{Name: "big/", IsDir: true, DirSize: &cache.DirSize{FileCount: 10}},
+		{Name: "small/", IsDir: true, DirSize: &cache.DirSize{FileCount: 2}},
+		{Name: "mid/", IsDir: true, DirSize: &cache.DirSize{FileCount: 5}},
+	}
+	sortEntries(entries, SortByCountDesc)
+	if entries[0].DirSize.FileCount != 10 || entries[1].DirSize.FileCount != 5 || entries[2].DirSize.FileCount != 2 {
+		t.Errorf("SortByCountDesc: got %v", entries)
+	}
+}
+
+func TestSortEntries_BySizeDesc(t *testing.T) {
+	entries := []cache.Entry{
+		{Name: "big.mp4", Size: 1000},
+		{Name: "small.mp4", Size: 100},
+		{Name: "mid.mp4", Size: 500},
+	}
+	sortEntries(entries, SortBySizeDesc)
+	if entries[0].Size != 1000 || entries[1].Size != 500 || entries[2].Size != 100 {
+		t.Errorf("SortBySizeDesc: got %v", entries)
+	}
+}
+
+func TestSortEntries_NilDirSizeAsc(t *testing.T) {
+	entries := []cache.Entry{
+		{Name: "a/", IsDir: true, DirSize: nil},
+		{Name: "b/", IsDir: true, DirSize: &cache.DirSize{FileCount: 3}},
+		{Name: "c/", IsDir: true, DirSize: &cache.DirSize{FileCount: 1}},
+	}
+	sortEntries(entries, SortByCount)
+	// nil DirSize → MaxInt64 sentinel → sorts last
+	if entries[2].Name != "a/" {
+		t.Errorf("SortByCount nil asc: nil should be last, got last=%s", entries[2].Name)
+	}
+}
+
+func TestSortEntries_NilDirSizeDesc(t *testing.T) {
+	entries := []cache.Entry{
+		{Name: "a/", IsDir: true, DirSize: nil},
+		{Name: "b/", IsDir: true, DirSize: &cache.DirSize{FileCount: 3}},
+		{Name: "c/", IsDir: true, DirSize: &cache.DirSize{FileCount: 1}},
+	}
+	sortEntries(entries, SortByCountDesc)
+	// nil DirSize → -1 sentinel → sorts last in descending
+	if entries[2].Name != "a/" {
+		t.Errorf("SortByCountDesc nil desc: nil should be last, got last=%s", entries[2].Name)
+	}
+}
+
+// --- Header desc indicator tests ---
+
+func TestRenderListHeader_SortByNameDesc(t *testing.T) {
+	m := makeModel([]cache.Entry{
+		{
+			Name:    "folder1",
+			IsDir:   true,
+			URL:     "http://x/folder1/",
+			DirSize: &cache.DirSize{FileCount: 4, TotalSize: 1024 * 1024},
+		},
+	})
+	m.sortBy = SortByNameDesc
+	out := m.renderList(120, 20)
+	if !containsStr(out, "▼") {
+		t.Error("header SortByNameDesc: missing ▼ indicator")
+	}
+}
+
+func TestRenderListHeader_SortByCountDesc(t *testing.T) {
+	m := makeModel([]cache.Entry{
+		{
+			Name:    "folder1",
+			IsDir:   true,
+			URL:     "http://x/folder1/",
+			DirSize: &cache.DirSize{FileCount: 4, TotalSize: 1024 * 1024},
+		},
+	})
+	m.sortBy = SortByCountDesc
+	out := m.renderList(120, 20)
+	if !containsStr(out, "▼") {
+		t.Error("header SortByCountDesc: missing ▼ indicator")
+	}
+}
+
+func TestRenderListHeader_SortBySizeDesc(t *testing.T) {
+	m := makeModel([]cache.Entry{
+		{
+			Name:    "folder1",
+			IsDir:   true,
+			URL:     "http://x/folder1/",
+			DirSize: &cache.DirSize{FileCount: 4, TotalSize: 1024 * 1024},
+		},
+	})
+	m.sortBy = SortBySizeDesc
+	out := m.renderList(120, 20)
+	if !containsStr(out, "▼") {
+		t.Error("header SortBySizeDesc: missing ▼ indicator")
 	}
 }
 

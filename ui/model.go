@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -29,9 +30,12 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 type SortBy int
 
 const (
-	SortByName  SortBy = iota // default: alphabetical
-	SortByCount               // ascending file count
-	SortBySize                // ascending total size
+	SortByName      SortBy = iota // default: alphabetical ascending
+	SortByCount                   // ascending file count
+	SortBySize                    // ascending total size
+	SortByNameDesc                // name descending
+	SortByCountDesc               // count descending
+	SortBySizeDesc                // size descending
 )
 
 // --- Messages ---
@@ -274,7 +278,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showBytes = !m.showBytes
 
 	case "s":
-		m.sortBy = (m.sortBy + 1) % 3
+		m.sortBy = (m.sortBy + 1) % 6
 		sortEntries(m.entries, m.sortBy)
 		m.cursor = 0
 
@@ -556,18 +560,37 @@ func (m Model) renderList(width, height int) string {
 	if useColumns {
 		boldStat := statStyle.Bold(true)
 		headerName := padRight("NAME", maxNameW)
-		headerCount := padRight("COUNT", maxCountW)
 		headerSize := padRight("SIZE", maxSizeW)
 
-		countHeader := boldStat.Render(gap + headerCount)
-		if m.sortBy == SortByCount {
-			countHeader = boldStat.Render(gap+headerCount) + dirStyle.Render(" ▲")
+		nameIndicator := ""
+		switch m.sortBy {
+		case SortByName:
+			nameIndicator = " ▲"
+		case SortByNameDesc:
+			nameIndicator = " ▼"
 		}
+
+		var countHeader string
+		if maxCountW > 0 {
+			headerCount := padRight("COUNT", maxCountW)
+			countHeader = boldStat.Render(gap + headerCount)
+			switch m.sortBy {
+			case SortByCount:
+				countHeader = boldStat.Render(gap+headerCount) + dirStyle.Render(" ▲")
+			case SortByCountDesc:
+				countHeader = boldStat.Render(gap+headerCount) + dirStyle.Render(" ▼")
+			}
+		}
+
 		sizeHeader := boldStat.Render(gap + headerSize)
-		if m.sortBy == SortBySize {
+		switch m.sortBy {
+		case SortBySize:
 			sizeHeader = boldStat.Render(gap+headerSize) + dirStyle.Render(" ▲")
+		case SortBySizeDesc:
+			sizeHeader = boldStat.Render(gap+headerSize) + dirStyle.Render(" ▼")
 		}
-		headerLine = boldStat.Render(headerName) + countHeader + sizeHeader
+
+		headerLine = boldStat.Render(headerName) + dirStyle.Render(nameIndicator) + countHeader + sizeHeader
 		entryHeight = height - 1
 	}
 
@@ -804,29 +827,55 @@ func sortEntries(entries []cache.Entry, by SortBy) {
 	sort.SliceStable(entries, func(i, j int) bool {
 		switch by {
 		case SortByCount:
-			ci := int64(0)
+			ci := int64(math.MaxInt64) // nil → bottom in ascending
 			if entries[i].DirSize != nil {
 				ci = entries[i].DirSize.FileCount
 			}
-			cj := int64(0)
+			cj := int64(math.MaxInt64)
 			if entries[j].DirSize != nil {
 				cj = entries[j].DirSize.FileCount
 			}
 			return ci < cj
+		case SortByCountDesc:
+			ci := int64(-1) // nil → bottom in descending
+			if entries[i].DirSize != nil {
+				ci = entries[i].DirSize.FileCount
+			}
+			cj := int64(-1)
+			if entries[j].DirSize != nil {
+				cj = entries[j].DirSize.FileCount
+			}
+			return ci > cj
 		case SortBySize:
-			si := int64(0)
+			si := int64(math.MaxInt64) // nil → bottom in ascending
 			if entries[i].DirSize != nil {
 				si = entries[i].DirSize.TotalSize
 			} else if entries[i].Size >= 0 {
 				si = entries[i].Size
 			}
-			sj := int64(0)
+			sj := int64(math.MaxInt64)
 			if entries[j].DirSize != nil {
 				sj = entries[j].DirSize.TotalSize
 			} else if entries[j].Size >= 0 {
 				sj = entries[j].Size
 			}
 			return si < sj
+		case SortBySizeDesc:
+			si := int64(-1) // nil → bottom in descending
+			if entries[i].DirSize != nil {
+				si = entries[i].DirSize.TotalSize
+			} else if entries[i].Size >= 0 {
+				si = entries[i].Size
+			}
+			sj := int64(-1)
+			if entries[j].DirSize != nil {
+				sj = entries[j].DirSize.TotalSize
+			} else if entries[j].Size >= 0 {
+				sj = entries[j].Size
+			}
+			return si > sj
+		case SortByNameDesc:
+			return entries[i].Name > entries[j].Name
 		default: // SortByName
 			return entries[i].Name < entries[j].Name
 		}
