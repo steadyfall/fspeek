@@ -551,7 +551,12 @@ func (m Model) renderList(width, height int) string {
 	gap := strings.Repeat(" ", colGap)
 	hasStats := maxCountW > 0 || maxSizeW > 0
 	// +colGap+1: colGap space + "~" for the partial column
-	fullColW := maxNameW + colGap + maxCountW + colGap + maxSizeW + colGap + 1
+	var fullColW int
+	if maxCountW > 0 {
+		fullColW = maxNameW + colGap + maxCountW + colGap + maxSizeW + colGap + 1
+	} else {
+		fullColW = maxNameW + colGap + maxSizeW + colGap + 1
+	}
 	useColumns := hasStats && width >= fullColW
 
 	// Build header line (columnar mode only).
@@ -625,7 +630,11 @@ func (m Model) renderList(width, height int) string {
 				statText = gap + padRight(countStr, maxCountW) + gap + padRight(sizeStr, maxSizeW)
 			} else if !e.IsDir && e.Size >= 0 {
 				sizeStr := formatSize(e.Size, m.showBytes)
-				statText = gap + strings.Repeat(" ", maxCountW) + gap + padRight(sizeStr, maxSizeW)
+				if maxCountW > 0 {
+					statText = gap + strings.Repeat(" ", maxCountW) + gap + padRight(sizeStr, maxSizeW)
+				} else {
+					statText = gap + padRight(sizeStr, maxSizeW)
+				}
 			}
 			if e.IsDir && e.DirSize != nil && e.DirSize.Partial {
 				partialSuffix = gap + "~"
