@@ -30,6 +30,9 @@ type Theme struct {
 
 	// Spinner / loading
 	SpinnerFg string
+
+	// Partial-listing indicator
+	PartialFg string
 }
 
 // SpectralTheme is the default theme: cold navigation, warm discovery.
@@ -53,4 +56,5 @@ var SpectralTheme = Theme{
 	StatusErrFg:    "203",
 	HelpFg:         "238",
 	SpinnerFg:      "45",
+	PartialFg:      "214", // amber — cache confidence signal
 }
