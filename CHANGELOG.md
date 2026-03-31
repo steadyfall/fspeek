@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.1.0] - 2026-04-01
+
+### Added
+
+- **Cache-first startup** — fspeek now loads directory listings from the SQLite cache on startup instead of always fetching from the server first. The first view appears immediately if the cache is warm; HTTP fetch only fires on a cache miss.
+- `applyFromCache()` internal helper deduplicates cache-hit state setup across startup and directory navigation, and respects the active sort order.
+
+### Changed
+
+- Pressing `r` now force-refreshes the listing from HTTP at any time (not just when an error is shown), invalidating both the current directory listing and the selected file's metadata in the cache.
+- Help bar updated: "retry" → "refresh".
+
+### Fixed
+
+- `applyFromCache` now has an internal nil guard on the cache reference, making it safe against callers that don't gate on nil externally.
+- `r` no longer incorrectly deletes the cached listing of a child directory when the cursor is on a directory entry.
+- Loading spinner now appears during the initial HTTP fetch (was missing when no cache hit on startup).
+
 ## [0.2.0.0] - 2026-03-31
 
 ### Added
