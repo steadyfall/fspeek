@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -780,11 +782,10 @@ func TestRenderListColumnar_NoDirSize(t *testing.T) {
 func TestRenderListColumnar_File(t *testing.T) {
 	m := makeModel([]cache.Entry{
 		{
-			Name:    "movie.mp4",
-			IsDir:   false,
-			URL:     "http://x/movie.mp4",
-			Size:    1024 * 1024 * 1024,
-			DirSize: &cache.DirSize{FileCount: 1, TotalSize: 1024 * 1024 * 1024},
+			Name:  "movie.mp4",
+			IsDir: false,
+			URL:   "http://x/movie.mp4",
+			Size:  1024 * 1024 * 1024,
 		},
 		{
 			Name:    "folder1",
@@ -936,6 +937,58 @@ func TestRenderStatus_FilterMode(t *testing.T) {
 	out := m.renderStatus()
 	if !containsStr(out, "/ test_") {
 		t.Errorf("renderStatus filter mode: got %q, want to contain '/ test_'", out)
+	}
+}
+
+// stripANSI removes ANSI SGR escape sequences from s for plain-text comparison.
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string { return ansiRe.ReplaceAllString(s, "") }
+
+// --- Files-only columnar alignment test ---
+
+func TestRenderListColumnar_FilesOnly(t *testing.T) {
+	// Directory with only files (no subdirs) — maxCountW==0.
+	// SIZE column in the header and data rows must start at the same offset.
+	// Use SortByCount so neither NAME nor SIZE shows an indicator, keeping
+	// the header prefix width equal to the data prefix width.
+	m := makeModel([]cache.Entry{
+		{Name: "movie.mp4", IsDir: false, URL: "http://x/movie.mp4", Size: 1024 * 1024 * 100},
+		{Name: "clip.mp4", IsDir: false, URL: "http://x/clip.mp4", Size: 1024 * 512},
+	})
+	m.sortBy = SortByCount
+
+	out := m.renderList(120, 20)
+
+	rawLines := strings.Split(out, "\n")
+	if len(rawLines) < 2 {
+		t.Fatalf("FilesOnly: expected at least header + 1 data line, got %d lines", len(rawLines))
+	}
+
+	// Strip ANSI before measuring byte offsets.
+	headerLine := stripANSI(rawLines[0])
+	dataLine := stripANSI(rawLines[1])
+
+	headerIdx := strings.Index(headerLine, "SIZE")
+	if headerIdx < 0 {
+		t.Fatalf("FilesOnly: SIZE not found in header %q", headerLine)
+	}
+
+	// Find size string for first entry — try humanize format variants.
+	dataIdx := -1
+	for _, candidate := range []string{"100 MB", "105 MB", "104 MB", "95 MB"} {
+		if i := strings.Index(dataLine, candidate); i >= 0 {
+			dataIdx = i
+			break
+		}
+	}
+	if dataIdx < 0 {
+		t.Fatalf("FilesOnly: size string not found in data line %q", dataLine)
+	}
+
+	if headerIdx != dataIdx {
+		t.Errorf("FilesOnly: SIZE header at col %d but size data at col %d (misaligned by %d)\n  header: %q\n  data:   %q",
+			headerIdx, dataIdx, dataIdx-headerIdx, headerLine, dataLine)
 	}
 }
 
