@@ -506,7 +506,7 @@ func (m Model) View() string {
 
 	status := m.renderStatus()
 	help := helpStyle.Width(m.width).Render(
-		"↑/k up  ↓/j down  l/enter dir  h/back  s sort  b bytes  / filter  r retry  q quit",
+		"↑/k up  ↓/j down  l/enter dir  h/backspace/← back  s sort  b bytes  / filter  esc exit  r retry  q quit",
 	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, panes, status, help)

@@ -1104,6 +1104,25 @@ func TestRenderListHeader_SortBySizeDesc(t *testing.T) {
 	}
 }
 
+// --- Help text test ---
+
+func TestView_HelpText(t *testing.T) {
+	sc := newStubCache()
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	m.width = 200
+	m.height = 30
+	out := m.View()
+	if !containsStr(out, "esc exit") {
+		t.Error("help text: missing 'esc exit'")
+	}
+	if !containsStr(out, "backspace") {
+		t.Error("help text: missing 'backspace'")
+	}
+	if !containsStr(out, "h/backspace/← back") {
+		t.Error("help text: missing 'h/backspace/← back'")
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) > 0 && len(sub) > 0 && (s == sub || len(s) >= len(sub) &&
 		func() bool {
