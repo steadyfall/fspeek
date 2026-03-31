@@ -313,10 +313,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.cancel()
 				m.cancel = nil
 			}
-			// Invalidate cached metadata for the selected file so force-refresh
-			// fetches fresh data rather than serving a stale cache hit.
+			// Invalidate the current directory listing and the selected file's
+			// metadata so force-refresh fetches fresh data from HTTP.
 			if m.cache != nil {
-				if url := m.currentURL(); url != "" {
+				_ = m.cache.Invalidate(m.baseURL)
+				if url := m.currentURL(); url != "" && m.cursor < len(m.entries) && !m.entries[m.cursor].IsDir {
 					_ = m.cache.Invalidate(url)
 				}
 			}
