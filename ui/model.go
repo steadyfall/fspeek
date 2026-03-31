@@ -243,7 +243,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
-	case "q", "ctrl+c":
+	case "q", "ctrl+c", "esc":
 		return m, tea.Quit
 
 	case "up", "k":
