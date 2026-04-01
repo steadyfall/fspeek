@@ -36,6 +36,7 @@ const (
 	SortByNameDesc                // name descending
 	SortByCountDesc               // count descending
 	SortBySizeDesc                // size descending
+	sortByNumStates               // sentinel — must remain last; used by the sort cycle
 )
 
 // --- Messages ---
@@ -278,7 +279,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showBytes = !m.showBytes
 
 	case "s":
-		m.sortBy = (m.sortBy + 1) % 6
+		m.sortBy = (m.sortBy + 1) % sortByNumStates
 		sortEntries(m.entries, m.sortBy)
 		m.cursor = 0
 
@@ -600,6 +601,9 @@ func (m Model) renderList(width, height int) string {
 
 		headerLine = boldStat.Render(headerName) + dirStyle.Render(nameIndicator) + countHeader + sizeHeader
 		entryHeight = height - 1
+		if entryHeight < 1 {
+			entryHeight = 1
+		}
 	}
 
 	// Get filtered visible entries.
@@ -959,14 +963,13 @@ func truncate(s string, max int) string {
 	if max <= 0 {
 		return ""
 	}
-	runes := []rune(s)
-	if len(runes) <= max {
+	if runewidth.StringWidth(s) <= max {
 		return s
 	}
 	if max <= 3 {
-		return string(runes[:max])
+		return runewidth.Truncate(s, max, "")
 	}
-	return string(runes[:max-1]) + "…"
+	return runewidth.Truncate(s, max-1, "") + "…"
 }
 
 // fetchListingCmd issues a directory listing fetch as a tea.Cmd.
