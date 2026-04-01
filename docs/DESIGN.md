@@ -32,6 +32,7 @@ Defined in `ui/theme.go` (`SpectralTheme`). Never hard-code color values in styl
 | `StatusErrFg` | 203 — coral-red | Error status bar text |
 | `HelpFg` | 238 — dark gray | Help bar (intentionally de-emphasized) |
 | `SpinnerFg` | 45 — bright cyan | Loading indicator (matches cursor) |
+| `PartialFg` | 214 — amber | Partial-cache `~` indicator on directory size |
 
 ## Typography (terminal context)
 - **Bold:** Cursor row, directory names, metadata titles

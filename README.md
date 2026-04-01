@@ -53,7 +53,10 @@ password = "pass"
 | `k` / `↑` | Up |
 | `l` / `→` / `Enter` | Open directory |
 | `h` / `←` / `Backspace` | Go back |
-| `s` | Toggle byte sizes |
+| `s` | Cycle sort (Name ▲/▼, Count ▲/▼, Size ▲/▼) |
+| `b` | Toggle byte sizes |
+| `/` | Enter filter mode (type to narrow list, `esc` to clear) |
+| `esc` | Clear filter / quit |
 | `r` | Retry |
 | `q` / `Ctrl+C` | Quit |
 
