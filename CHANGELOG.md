@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.0.0] - 2026-03-31
+
+### Added
+
+- **Columnar directory layout** — the file list now shows NAME, COUNT, and SIZE in aligned columns with a stable header row. Column widths are computed from all entries so the layout stays stable while typing a filter.
+- **6-state sort cycle** — press `s` to cycle through Name ▲, Count ▲, Size ▲, Name ▼, Count ▼, Size ▼. The active sort column shows a ▲/▼ indicator in the header.
+- **Filter mode** — press `/` to enter filter mode; type to narrow the list to matching filenames (case-insensitive). `esc` clears the filter. `backspace` deletes the last character. Arrow keys and `enter` work while filtering.
+- **Partial-cache indicator** — directories whose size data comes from an incomplete cache scan show a trailing `~` in the size column, styled in amber.
+
+### Changed
+
+- Help bar updated: now shows `h/backspace/← back`, `esc exit`, and `/  filter`.
+- The COUNT column is omitted entirely when no directory size data is available, preventing SIZE column misalignment in file-only listings.
+- Sort state persists across directory navigation.
+- `truncate()` now uses display-width-aware truncation (`runewidth`) for correct behavior with CJK and other double-width filenames.
+- Sort cycle uses a named sentinel constant (`sortByNumStates`) instead of a magic `% 6` — adding future sort modes won't require updating the cycle.
+
+### Fixed
+
+- `esc` in normal mode now quits as advertised in the help bar (was a no-op).
+- `prefetchNext` now iterates visible entries (respecting active filter) instead of all entries — previously it queued wrong entries for background prefetch when a filter was active.
+- Column layout height guard: `entryHeight` is now clamped to at least 1 after header reservation, preventing broken windowing at very small terminal heights.
+
+### Added (tests)
+
+- 32 new tests covering columnar layout, sort cycle (ascending + descending + nil-DirSize sentinel), filter mode (typing, backspace, esc, navigation passthrough, case-insensitive match), help text, and header sort indicators.
+- Regression tests for `esc` quit in normal mode, `esc` clear-filter in filter mode, and `prefetchNext` filter correctness.
+
 ## [0.1.1.0] - 2026-03-30
 
 ### Changed
