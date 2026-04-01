@@ -424,12 +424,15 @@ func (m *Model) launchMetaFetchCmd() tea.Cmd {
 }
 
 // prefetchNext schedules metadata fetches for the next 3 non-directory entries.
+// Uses visibleEntries so that an active filter is respected — prefetching from
+// m.entries with a filter-relative cursor would fetch the wrong entries.
 func (m *Model) prefetchNext() tea.Cmd {
 	var cmds []tea.Cmd
 	count := 0
 	cacheInst := m.cache
-	for i := m.cursor + 1; i < len(m.entries) && count < 3; i++ {
-		e := m.entries[i]
+	entries := m.visibleEntries()
+	for i := m.cursor + 1; i < len(entries) && count < 3; i++ {
+		e := entries[i]
 		if e.IsDir || m.prefetched[e.URL] {
 			continue
 		}

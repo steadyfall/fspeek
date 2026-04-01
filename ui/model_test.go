@@ -1158,6 +1158,38 @@ func TestView_HelpText(t *testing.T) {
 	}
 }
 
+func TestPrefetchNext_RespectsFilter(t *testing.T) {
+	// Regression: prefetchNext iterated m.entries with a cursor that indexes
+	// visibleEntries(). With an active filter, it would queue invisible entries.
+	sc := newStubCache()
+	m := New("http://x/", Options{Cache: sc, Client: http.DefaultClient, Lister: stubLister{}})
+	m.entries = []cache.Entry{
+		{Name: "alpha.mp4", URL: "http://x/alpha.mp4", Size: 100},
+		{Name: "beta.mp4", URL: "http://x/beta.mp4", Size: 200},
+		{Name: "gamma.mp4", URL: "http://x/gamma.mp4", Size: 300},
+		{Name: "delta.mp4", URL: "http://x/delta.mp4", Size: 400},
+	}
+	// Filter to only show delta — cursor=0 points to delta in visibleEntries,
+	// but delta is at m.entries[3]. A buggy prefetchNext would start at m.entries[1].
+	m.filterQuery = "delta"
+	m.cursor = 0
+	m.fetchNonce = "http://x/delta.mp4"
+
+	newM, _ := m.Update(metadataMsg{
+		nonce: "http://x/delta.mp4",
+		meta:  &fetcher.Metadata{Format: "MP4"},
+	})
+	m2 := newM.(Model)
+
+	// delta is the only visible entry at cursor=0; nothing comes after it.
+	// alpha, beta, gamma must NOT be prefetched (not visible, not after cursor).
+	for _, url := range []string{"http://x/alpha.mp4", "http://x/beta.mp4", "http://x/gamma.mp4"} {
+		if m2.prefetched[url] {
+			t.Errorf("prefetchNext with filter: %s should NOT be prefetched (not in filtered view)", url)
+		}
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) > 0 && len(sub) > 0 && (s == sub || len(s) >= len(sub) &&
 		func() bool {
