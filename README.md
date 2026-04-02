@@ -57,7 +57,7 @@ password = "pass"
 | `b` | Toggle byte sizes |
 | `/` | Enter filter mode (type to narrow list, `esc` to clear) |
 | `esc` | Clear filter / quit |
-| `r` | Retry |
+| `r` | Force-refresh listing |
 | `q` / `Ctrl+C` | Quit |
 
 ## Project Docs
