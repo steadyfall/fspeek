@@ -100,3 +100,13 @@ CREATE TABLE IF NOT EXISTS server_caps (
 **Where to start:** Add to `cache/sqlite.go` after core cache is working. Use `url.Host` as the key (not full URL).
 
 **Depends on:** Core cache working (v1.0)
+
+---
+
+## Completed
+
+### TODO-1: goreleaser config + GitHub Actions CI/CD
+
+**Completed:** v0.2.2.0 (2026-04-19)
+
+Implemented `.goreleaser.yaml` (4-platform builds: linux/amd64, linux/arm64, darwin/amd64, darwin/arm64), `.github/workflows/ci.yml` (gofmt/vet/test on push+PR), `.github/workflows/release.yml` (goreleaser on tag). Additional supply chain hardening: all actions SHA-pinned, goreleaser binary pinned to v2.15.3, CODEOWNERS added, test gate added to release workflow.
