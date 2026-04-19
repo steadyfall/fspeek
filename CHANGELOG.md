@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.2.0] - 2026-04-19
+
+### Added
+
+- **Release pipeline** — goreleaser config builds pre-compiled binaries for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64 on every `v*.*.*` tag push. Release workflow publishes binaries and checksums to GitHub Releases. `go install github.com/steadyfall/fspeek@latest` now resolves to pre-built artifacts.
+- **CI workflow** — runs `gofmt`, `go vet`, and `go test -race` on every push and pull request targeting `main`.
+- **Supply chain hardening** — all GitHub Actions pinned to specific commit SHAs (`actions/checkout` v4.2.2, `actions/setup-go` v5.2.0, `goreleaser/goreleaser-action` v6.4.0) and goreleaser binary pinned to v2.15.3.
+- **CODEOWNERS** — workflow and goreleaser config changes require `@steadyfall` review.
+- **Release test gate** — release workflow runs the full test suite before invoking goreleaser, preventing untested tags from publishing binaries.
+
+### Changed
+
+- `fspeek --version` on dev builds (not built via goreleaser) now reports `dev` instead of a stale version string.
+
 ## [0.2.1.0] - 2026-04-01
 
 ### Added
