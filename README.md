@@ -1,9 +1,16 @@
 # fspeek
 
+[![CI](https://github.com/steadyfall/fspeek/actions/workflows/ci.yml/badge.svg)](https://github.com/steadyfall/fspeek/actions/workflows/ci.yml)
+
 A terminal UI for browsing remote HTTP file servers. Extracts media metadata
 (duration, codec, audio info) using HTTP range requests — no full downloads needed.
 
 ## Install
+
+**Pre-built binaries** (linux/darwin, amd64/arm64) are available on the
+[Releases page](https://github.com/steadyfall/fspeek/releases).
+
+Or install with Go:
 
 ```bash
 go install github.com/steadyfall/fspeek/cmd/fspeek@latest
