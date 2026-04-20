@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.3.1] - 2026-04-20
+
+### Changed
+
+- **gstack upgrade v0.14.1.0 → v1.5.1.0** — upgrades the vendored AI assistant tooling. Key additions: `/make-pdf` skill (markdown to publication-quality PDF via headless Chromium), `/context-save` and `/context-restore` (session state as readable markdown), design taste memory across sessions, an 8-layer prompt injection defense stack in the sidebar agent, and fixes for PDF double-page-numbers, HTML entity double-escaping, and Linux font fallback.
+
 ## [0.2.3.0] - 2026-04-20
 
 ### Added
