@@ -1,0 +1,29 @@
+name: Release Smoke
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  install-smoke:
+    runs-on: ubuntu-latest
+    container: golang:1.26.2-trixie
+    permissions:
+      contents: read
+    steps:
+      - name: Install fspeek
+        run: go install github.com/steadyfall/fspeek/cmd/fspeek@${{ github.ref_name }}
+
+      - name: Version flag prints release version
+        run: |
+          output=$(fspeek --version)
+          echo "Got: $output"
+          echo "$output" | grep -qE "^fspeek (dev|v?[0-9]+\.[0-9]+)"
+
+      - name: No URL exits non-zero with usage
+        run: |
+          if fspeek 2>/dev/null; then
+            echo "Expected non-zero exit when no --url given"
+            exit 1
+          fi
+          fspeek 2>&1 | grep -q "\-\-url"
