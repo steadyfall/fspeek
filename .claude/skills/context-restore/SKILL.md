@@ -1,0 +1,1 @@
+/Users/himankdave/conductor/workspaces/fspeek/stuttgart/.claude/skills/gstack/context-restore/SKILL.md

@@ -1,0 +1,1 @@
+/Users/himankdave/conductor/workspaces/fspeek/stuttgart/.claude/skills/gstack/canary/SKILL.md
