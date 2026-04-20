@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.3.0] - 2026-04-20
+
+### Added
+
+- **Smoke tests** — two CI smoke jobs verify the binary works after every build. The `smoke` job in `ci.yml` builds from source and checks that `--version` prints a recognizable version and that running with no `--url` exits non-zero with usage output. A new `release-smoke.yml` workflow triggers on every GitHub release publication: it enters a `golang:1.26.2-trixie` container, installs fspeek via `go install`, and runs the same checks to confirm the released module is installable and functional end-to-end.
+
+### Changed
+
+- No-URL smoke check now captures output on the first invocation and greps that, avoiding a redundant second binary run.
+- Release smoke install step assigns `github.ref_name` to an env var before shell expansion.
+- Release smoke version check no longer accepts `dev` — a release binary must print a real version string.
+
 ## [0.2.2.0] - 2026-04-19
 
 ### Added
