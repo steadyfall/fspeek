@@ -55,8 +55,8 @@ jobs:
 
       - name: No URL exits non-zero with usage
         run: |
-          if ./fspeek 2>/dev/null; then
+          if output=$(./fspeek 2>&1); then
             echo "Expected non-zero exit when no --url given"
             exit 1
           fi
-          ./fspeek 2>&1 | grep -q "\-\-url"
+          echo "$output" | grep -q "\-\-url"
