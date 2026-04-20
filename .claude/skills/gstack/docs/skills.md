@@ -13,7 +13,7 @@ Detailed guides for every gstack skill — philosophy, workflow, and examples.
 | [`/investigate`](#investigate) | **Debugger** | Systematic root-cause debugging. Iron Law: no fixes without investigation. Traces data flow, tests hypotheses, stops after 3 failed fixes. |
 | [`/design-review`](#design-review) | **Designer Who Codes** | Live-site visual audit + fix loop. 80-item audit, then fixes what it finds. Atomic commits, before/after screenshots. |
 | [`/design-shotgun`](#design-shotgun) | **Design Explorer** | Generate multiple AI design variants, open a comparison board in your browser, and iterate until you approve a direction. Taste memory biases toward your preferences. |
-| [`/design-html`](#design-html) | **Design Engineer** | Takes an approved mockup from `/design-shotgun` and generates production-quality Pretext-native HTML. Text reflows on resize, heights adjust to content. Smart API routing per design type. Framework detection for React/Svelte/Vue. |
+| [`/design-html`](#design-html) | **Design Engineer** | Generates production-quality Pretext-native HTML. Works with approved mockups, CEO plans, design reviews, or from scratch. Text reflows on resize, heights adjust to content. Smart API routing per design type. Framework detection for React/Svelte/Vue. |
 | [`/qa`](#qa) | **QA Lead** | Test your app, find bugs, fix them with atomic commits, re-verify. Auto-generates regression tests for every fix. |
 | [`/qa-only`](#qa) | **QA Reporter** | Same methodology as /qa but report only. Use when you want a pure bug report without code changes. |
 | [`/ship`](#ship) | **Release Engineer** | Sync main, run tests, audit coverage, push, open PR. Bootstraps test frameworks if you don't have one. One command. |
@@ -36,7 +36,7 @@ Detailed guides for every gstack skill — philosophy, workflow, and examples.
 | [`/freeze`](#safety--guardrails) | **Edit Lock** | Restrict all file edits to a single directory. Blocks Edit and Write outside the boundary. Accident prevention for debugging. |
 | [`/guard`](#safety--guardrails) | **Full Safety** | Combines /careful + /freeze in one command. Maximum safety for prod work. |
 | [`/unfreeze`](#safety--guardrails) | **Unlock** | Remove the /freeze boundary, allowing edits everywhere again. |
-| [`/connect-chrome`](#connect-chrome) | **Chrome Controller** | Launch your real Chrome controlled by gstack with the Side Panel extension. Watch every action live. |
+| [`/open-gstack-browser`](#open-gstack-browser) | **GStack Browser** | Launch GStack Browser with sidebar, anti-bot stealth, auto model routing, cookie import, and Claude Code integration. Watch every action live. |
 | [`/setup-deploy`](#setup-deploy) | **Deploy Configurator** | One-time setup for `/land-and-deploy`. Detects your platform, production URL, and deploy commands. |
 | [`/gstack-upgrade`](#gstack-upgrade) | **Self-Updater** | Upgrade gstack to the latest version. Detects global vs vendored install, syncs both, shows what changed. |
 
@@ -425,7 +425,7 @@ You know the feeling. You have a feature, a page, a landing screen... and you're
 5. You click "Approve" on the one you like, or give feedback for another round
 6. The approved variant saves to `~/.gstack/projects/$SLUG/designs/` with an `approved.json`
 
-That `approved.json` is what `/design-html` reads. The design pipeline chains: shotgun picks the direction, design-html renders it as working code.
+That `approved.json` is one way to feed `/design-html`. The design pipeline chains: shotgun picks the direction, design-html renders it as working code. But `/design-html` also works with CEO plans, design reviews, or just a description.
 
 ### Taste memory
 
@@ -457,7 +457,9 @@ This is my **design-to-code mode**.
 
 Every AI code generation tool produces static CSS. Hardcoded heights. Text that overflows on resize. Breakpoints that snap instead of flowing. The output looks right at exactly one viewport size and breaks at every other.
 
-`/design-html` fixes this. It takes the approved mockup from `/design-shotgun` and generates HTML using [Pretext](https://github.com/chenglou/pretext) by Cheng Lou (ex-React core, Midjourney frontend). Pretext is a 15KB library that computes text layout without DOM measurement. Text reflows. Heights adjust to content. Cards size themselves. Chat bubbles shrinkwrap. All sub-millisecond, all dynamic.
+`/design-html` fixes this. It generates HTML using [Pretext](https://github.com/chenglou/pretext) by Cheng Lou (ex-React core, Midjourney frontend). Pretext is a 15KB library that computes text layout without DOM measurement. Text reflows. Heights adjust to content. Cards size themselves. Chat bubbles shrinkwrap. All sub-millisecond, all dynamic.
+
+It works with multiple input sources: an approved mockup from `/design-shotgun`, a CEO plan from `/plan-ceo-review`, design review context from `/plan-design-review`, a PNG you provide, or just a description of what you want. It detects what context exists and asks how you want to proceed.
 
 ### Smart API routing
 
@@ -953,21 +955,23 @@ Claude: 23 learnings for this project (14 high confidence, 6 medium, 3 low)
 
 ---
 
-## `/connect-chrome`
+## `/open-gstack-browser`
 
 This is my **co-presence mode**.
 
-`/browse` runs headless by default. You don't see what the agent sees. `/connect-chrome` changes that. It launches your actual Chrome browser controlled by Playwright, with the gstack Side Panel extension auto-loaded. You watch every action in real time... same screen, same window.
+`/browse` runs headless by default. You don't see what the agent sees. `/open-gstack-browser` changes that. It launches GStack Browser (rebranded Chromium with anti-bot stealth) controlled by Playwright, with the sidebar extension auto-loaded. You watch every action in real time.
 
-A subtle green shimmer at the top edge tells you which Chrome window gstack controls. All existing browse commands work unchanged. The Side Panel shows a live activity feed of every command and a chat sidebar where you can direct Claude with natural language instructions.
+The sidebar chat is a Claude instance that controls the browser. It auto-routes to the right model: Sonnet for navigation and actions (click, goto, fill, screenshot), Opus for reading and analysis (summarize, find bugs, describe). One-click cookie import from the sidebar footer. The browser stays alive as long as the window is open... no idle timeout in headed mode. The menu bar says "GStack Browser" instead of "Chrome for Testing."
+
+The sidebar agent ships a layered prompt injection defense: a local 22MB ML classifier scans every page and tool output, a Haiku transcript check votes on the full conversation, a canary token catches session-exfil attempts, and a verdict combiner requires two classifiers to agree before blocking. A shield icon in the header shows status (green/amber/red). Details in [ARCHITECTURE.md](../ARCHITECTURE.md#prompt-injection-defense-sidebar-agent).
 
 ```
-You:   /connect-chrome
+You:   /open-gstack-browser
 
-Claude: Launched Chrome with Side Panel extension.
-        Green shimmer indicates the controlled window.
-        All $B commands now run in headed mode.
-        Type in the Side Panel to direct the browser agent.
+Claude: Launched GStack Browser with sidebar extension.
+        Anti-bot stealth active. All $B commands run in headed mode.
+        Type in the sidebar to direct the browser agent.
+        Sidebar model routing: sonnet for actions, opus for analysis.
 ```
 
 ---
