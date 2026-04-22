@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/stuttgart/.claude/skills/gstack/cso/SKILL.md
+/Users/himankdave/conductor/workspaces/fspeek/san-diego/.claude/skills/gstack/cso/SKILL.md

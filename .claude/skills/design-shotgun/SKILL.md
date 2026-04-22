@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/stuttgart/.claude/skills/gstack/design-shotgun/SKILL.md
+/Users/himankdave/conductor/workspaces/fspeek/san-diego/.claude/skills/gstack/design-shotgun/SKILL.md
