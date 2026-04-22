@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/san-diego/.claude/skills/gstack/document-release/SKILL.md
+../gstack/document-release/SKILL.md

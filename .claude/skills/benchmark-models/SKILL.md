@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/san-diego/.claude/skills/gstack/benchmark-models/SKILL.md
+../gstack/benchmark-models/SKILL.md

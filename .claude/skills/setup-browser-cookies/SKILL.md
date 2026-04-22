@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/san-diego/.claude/skills/gstack/setup-browser-cookies/SKILL.md
+../gstack/setup-browser-cookies/SKILL.md

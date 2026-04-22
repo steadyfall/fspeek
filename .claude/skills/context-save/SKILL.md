@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/san-diego/.claude/skills/gstack/context-save/SKILL.md
+../gstack/context-save/SKILL.md

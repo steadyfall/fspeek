@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/san-diego/.claude/skills/gstack/plan-devex-review/SKILL.md
+../gstack/plan-devex-review/SKILL.md
