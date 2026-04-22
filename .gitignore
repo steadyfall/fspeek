@@ -21,3 +21,4 @@ coverage.out
 
 # Local tooling
 .gstack/
+.claude/skills/gstack/
