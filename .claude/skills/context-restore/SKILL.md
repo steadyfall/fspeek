@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/medan/.claude/skills/gstack/context-restore/SKILL.md
+../gstack/context-restore/SKILL.md

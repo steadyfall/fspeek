@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/medan/.claude/skills/gstack/canary/SKILL.md
+../gstack/canary/SKILL.md

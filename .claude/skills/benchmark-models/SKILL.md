@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/medan/.claude/skills/gstack/benchmark-models/SKILL.md
+../gstack/benchmark-models/SKILL.md

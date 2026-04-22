@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/medan/.claude/skills/gstack/autoplan/SKILL.md
+../gstack/autoplan/SKILL.md

@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/medan/.claude/skills/gstack/plan-eng-review/SKILL.md
+../gstack/plan-eng-review/SKILL.md
