@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.4.0] - 2026-04-22
+
+### Changed
+
+- **gstack upgrade v1.5.1.0 → v1.6.0.0** — upgrades the vendored AI assistant tooling. Key security additions: dual-listener HTTP architecture for `pair-agent` (the ngrok tunnel now forwards only a locked port, making `/health`, `/cookie-picker`, and `/inspector/*` physically unreachable over the tunnel), a 17-command allowlist for remote agents, HttpOnly SSE session cookies replacing URL-embedded tokens, SSRF protection on download+scrape paths, envelope sentinel escape fixes in snapshots, and hidden-element detection across all DOM-reading channels.
+
 ## [0.2.3.1] - 2026-04-20
 
 ### Changed
