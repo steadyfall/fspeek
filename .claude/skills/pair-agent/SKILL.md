@@ -1,1 +1,1 @@
-/Users/himankdave/conductor/workspaces/fspeek/san-diego/.claude/skills/gstack/pair-agent/SKILL.md
+../gstack/pair-agent/SKILL.md
